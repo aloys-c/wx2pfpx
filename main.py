@@ -1,4 +1,5 @@
 from cmath import sqrt
+from ctypes import sizeof
 from encodings import utf_8
 from math import atan2
 import requests
@@ -7,7 +8,11 @@ import pygrib
 import matplotlib.pyplot as plt
 import json
 import math
-#grbs = pygrib.open("gfs.t12z.pgrb2.1p00.anl")
+import pytz
+from time import sleep
+import sys,os,shutil
+import tkinter as tk
+from datetime import datetime,timezone, timedelta
 
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
@@ -15,40 +20,79 @@ taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasou
 #chars = list(map(chr,range(65,91)))+list(map(chr,range(48,58)))
 #ids = chars[0:10]+["K" + c for c in chars]+chars[11:26]
 
-
 def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
 
-def xml2array(xml):
+def xml2array(xml,s,e,name):
         array = []
         root = ET.fromstring(xml)
         for child in root.iter('*'):
             if("raw_text" in child.tag):
-                array.append({"ICAO":child.text[0:4],"METAR":child.text})
+                array.append({"ICAO":child.text[s:e],name:child.text})
         return array
 
+def print_m(message):
+    root.text.insert("end",message+"\n")
+    root.text.see(tk.END)
+    root.update()
+
+def line_m():
+    root.text.delete("end-2l","end-1l")
+
 def get_metars():
-    print("Dowloading metars...")
+    print_m("Downloading METAR data ...")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
+
+    for i in ids:
+        response = requests.get(metar_url+i)
+        temp = xml2array(response.content,0,4,"METAR")
+        metars.extend(temp)
+
+    return metars
+
+
+def get_tafs():
+    print_m("Dowloading TAF data...")
+    ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
+
     tafs = []
 
     for i in ids:
-        
-        response = requests.get(metar_url+i)
-        temp = xml2array(response.content)
-        metars.extend(temp)
+        response = requests.get(taf_url+i)
+        temp = xml2array(response.content,8,12,"TAF")
+        tafs.extend(temp)
 
-        #response = requests.get(taf_url+i)
-        #temp = xml2array(response.content)
-        #tafs.extend(temp)
-    return metars
-    with open("metars.json","w") as data_file:
-        json.dump(metars,data_file)
+    return tafs
+
+
+def compile_metars_tafs(airports,metars,tafs):
+    print_m("Compiling METAR and TAF data...")
+    n = 0
+    data = airports.copy()
+    length = len(data)
+    print_m("0"+"%")
+    for arpts in data:
+            n = n+1
+            if(n%1000==0):
+                line_m()
+                print_m(str(round(n/length*100))+"%")
+            if(any(metars.get('ICAO') == arpts['ICAO'] for metars in metars)):
+                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['ICAO']), None)
+                arpts['METAR'] = metars[index]['METAR']
+            else:
+                arpts['METAR'] = arpts['ICAO']
+            
+            if(any(tafs.get('ICAO') == arpts['ICAO'] for tafs in tafs)):
+                index = next((index for (index, d) in enumerate(tafs) if d["ICAO"] == arpts['ICAO']), None)
+                arpts['TAF'] = tafs[index]['TAF']
+            else:
+                arpts['TAF'] = 0
+    return data
+
 
 def get_d(tab,lat,lon):
-
     return tab[int(round(90+lat,0))][int(round(180+lon,0))%360]
 
 def get_wind(u,v,lat,lon):
@@ -56,21 +100,22 @@ def get_wind(u,v,lat,lon):
     y = get_d(v,lat,lon)
     return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
 
-def get_grib():
-    print("Dowloading wind datas...")
-    date = "20220315"
-    cycle = "18"
-    moment ="f006"
-
+def get_grib(date,cycle,moment,n):
+    print_m("Downloading wind data...")
+    
     data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_100_mb=on&lev_150_mb=on&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_400_mb=on&lev_450_mb=on&lev_500_mb=on&lev_550_mb=on&lev_600_mb=on&lev_650_mb=on&lev_700_mb=on&lev_750_mb=on&lev_800_mb=on&lev_850_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
-
+   
     grbs_file = requests.get(data).content
-    open('data_file', 'wb').write(grbs_file)
+    open('./data/data.'+str(n), 'wb').write(grbs_file)
+    if(sys.getsizeof(grbs_file)<100000):
+        return 0
+    else :
+        return 1
 
 
-def extract_grib():
-    print("Extracting wind data...")
-    data = airports.copy()
+def extract_grib(grbs,data):
+    print_m("Extracting wind data...")
+    print_m("0%")
     for arpts in data :
         arpts['data'] = []
     for i in range(1,48,3):
@@ -78,63 +123,195 @@ def extract_grib():
         u = grbs[i+1].values
         v = grbs[i+2].values
         alt = grbs[i].level
-        print(str(round(i/48*100))+"%")
+        line_m()
+        print_m(str(round(i/48*100))+"%")
         
         for arpts in data :
             lat = float(arpts['lat']) #180
             lon = float(arpts ['lon'])#360
             arpts['data'].extend([{"altitude":mb2feet(alt),"T":get_d(temp,lat,lon)-273.15}|get_wind(u,v,lat,lon)]) 
+    line_m()
+    print_m("100%")
 
     return data
     with open("data.json","w") as data_file:
         json.dump(data,data_file)
+    
 
-def compile_data():
-    print("Compiling to output_format")
-    with open("current_weather.txt","w") as out_file:
+
+def compile_data(data,n):
+    print_m("Compiling forecast "+str(n)+" to output format...")
+    with open("./output/out."+str(n),"w") as out_file:
         line = []
-        length = len(data)
-        n = 0
         for arpts in data:
-            n = n+1
-            if(n%1000==0):
-                print(str(round(n/length*100))+"%")
-            if(any(metars.get('ICAO') == arpts['ICAO'] for metars in metars)):
-                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['ICAO']), None)
-                line = metars[index]['METAR']
-            else:
-                line = arpts['ICAO']
+            line = arpts["METAR"]
+            if(arpts['TAF']):
+                line = line +" | "+arpts["TAF"]
             line = line+"~"
             for i in range(n_layer-1,-1,-1):
                 alt = str(round(arpts['data'][i]['altitude']))
                 head = str(round(arpts['data'][i]['head']))
                 speed = str(round(arpts['data'][i]['speed']))
                 temp = str(round(arpts['data'][i]['T']))
-                turb = "0"
                 line = line +alt+";"+head+";"+speed+";"+temp+";0|"
             out_file.write(line+"\n")
+    
+    print_m("Complete !")
+    shutil.copy("./data/data","./out/output")
+
+n_layer = 16
+### ------------ Welcome interface -------------------
+
+def data_process():
+    now = datetime.now(timezone.utc)
+    print_m("Actual time : "+str(now)[0:19]+" UTC")
+
+    date = root.start_field.get()
+    if(date == "dd/hh"):
+        date = ""
+    forecast = int(root.for_field.get())-1
+    now = now.replace(second=0,minute = 0, microsecond=0)
+
+    if(date):
+        date = date.split("/")
+        date = list(map(int,date))
+        date_d = datetime(now.year,now.month,date[0],date[1],0,0,0,pytz.UTC)
+    else :
+        date_d = datetime(now.year,now.month,now.day,now.hour,0,0,0,pytz.UTC)
+        date_d = date_d + timedelta(hours=1)
+        
+    datasets = ["00","06","12","18"]
+
+    #finding nearest dataset
+    diff = date_d-now
+
+    if(diff.total_seconds() < -60*60):
+        print_m("Sorry can't download past data.")
+        return
+    elif(diff.total_seconds()>60*60*24):
+        print_m("Sorry can't download data more than 24 hours in advance.")
+        return
+    else:
+        h = now.hour
+        t_h = math.floor(h/6)
+        
+        date_f = now.replace(hour= int(datasets[t_h]))
+        offset = int(round(((date_d-date_f).total_seconds()/(60*60))/3)*3)
+
+        print_m("Trying to grab data from "+str(date_f)[0:16]+" UTC release at "+str(offset)+"th hour forecast.")
+        
+        date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
+        cycle = date_f.strftime("%H")
+        moment = "f00"+str(offset)
+
+        if(not get_grib(date,cycle,moment,0)):
+            sleep(5)
+            print_m("Data not available yet.")
+            date_f = date_f - timedelta(hours=6)
+            offset = int(round(((date_d-date_f).total_seconds()/(60*60))/3)*3)
+            print_m("Trying to grab data from "+str(date_f)[0:16]+" UTC release at "+str(offset)+"th hour forecast." )
+
+            date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
+            cycle = date_f.strftime("%H")
+            if(offset>9):
+                moment = "f0"+str(offset)
+            else:
+                moment = "f00"+str(offset)
+
+            if(not get_grib(date,cycle,moment,0)):
+                print_m("Error : Couldn't retrieve data...")
+                return
+        data_log = open("./data/data","w")
+        data_log.write(str(date_f+timedelta(hours=offset))[0:16]+"\n")
+
+        if(forecast):
+            date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
+            cycle = date_f.strftime("%H")
+            for i in range(0,forecast):
+                offset = offset+3
+                if(offset>9):
+                    moment = "f0"+str(offset)
+                else:
+                    moment = "f00"+str(offset)
+                sleep(5)
+                data_log.write(str(date_f+timedelta(hours=offset))[0:16]+"\n")
+                if(not get_grib(date,cycle,moment,i+1)):
+                    print_m("Error : Couldn't retrieve data...")
+                return
+        data_log.close()
+        print_m("Wind data successfully retrieved...")        
+
+    with open("./data/airports") as arpts_file:
+        airports = json.load(arpts_file)
+
+    metars = get_metars()
+    tafs = get_tafs()
+
+    met_tafs = compile_metars_tafs(airports,metars,tafs)
+    
+    grbs = pygrib.open("./data/data."+"0")
+    data = extract_grib(grbs,met_tafs)
+    shutil.rmtree("./output/")
+    compile_data(data,0)
+
+    if(forecast):
+        for i in range(0,forecast):
+            grbs = pygrib.open("./data/data."+str(i+1))
+            data = extract_grib(grbs,met_tafs)
+            compile_data(data,i+1)
+
+#-------- UI -------------------------
+n_entry = 0
 
 
+def show_data(n):
+    with open("./data/data") as logs:
+        dates = logs.readlines()
+    #n = root.slider.get()
+    root.date_field.delete(0,"end")
+    root.date_field.insert(0,dates[int(n)])
+    root.update()
+    shutil.copy("./output/out."+str(n),"./output/current_weather.txt")
 
-#metars = get_metars()
-#get_grib()
+
+def init():
+    global n_entry
+    with open("./data/data") as logs:
+        dates = logs.readlines()
+        n_entry = len(dates)
+    root.slider= tk.Scale(root, from_=0, to=n_entry-1, orient=tk.HORIZONTAL,label = "Forecast offset:",command = show_data )
+    root.slider.grid(column = 3,row = 0)
+    show_data(0)
+    root.start_field.insert(0,"dd/hh")
+    root.for_field.insert(0,"1")
+    root.update()
 
 
-#n_layer = 16
+root = tk.Tk()
+root.date_label = tk.Label(root,text = "Start date (optionnal):",width =20)
+root.date_label.grid(column =0,row=0)
+root.start_field = tk.Entry(root,width=8)
+root.start_field.grid( column = 1,row=0,sticky=tk.W)
+root.for_label = tk.Label(root,text = "Number of forecasts (1-4)")
+root.for_label.grid(column =0,row=1)
+root.for_field = tk.Entry(root, text = "0",width=8)
+root.for_field.grid( column = 1,row=1,sticky=tk.W)
+root.button = tk.Button(root,text = "Download data", command = data_process)
+root.button.grid(column = 2,row = 0,rowspan =2,sticky=tk.W)
+root.date_field = tk.Entry(root, text = "",width=20)
+root.date_field.grid( column = 3,row=1)
+root.slider = None
+root.text = tk.Text(width = 100,height = 20)
+root.text.grid(row =2,column =0,columnspan=4)
 
-#with open("./airports.json") as arpts_file:
-   # airports = json.load(arpts_file)
-grbs = pygrib.open("data_file")
-#metars = json.load(open("metars.json"))
+init()
 
-#data = compile_grib()
+root.title("Wx2pfpx")
 
-#data = json.load(open("data.json"))
+# Run and display the window
+root.mainloop()
 
-#compile_data()
-print("Complete")
-print("Data validity :"+str(grbs[1].forecastTime))
-print(grbs[1].keys())
+
 
 # ------------------------- GRAPHICS ----------------------
 #fig, ax = plt.subplots(figsize = (36,18))
