@@ -1,12 +1,11 @@
-from cmath import sqrt
-from ctypes import sizeof
-from encodings import utf_8
+
 from math import atan2
 import requests
 import xml.etree.ElementTree as ET
-import pygrib
-import matplotlib.pyplot as plt
+#import pygrib
+#import matplotlib.pyplot as plt
 import json
+import ctypes
 import math
 import pytz
 from time import sleep
@@ -17,8 +16,6 @@ from datetime import datetime,timezone, timedelta
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 
-#chars = list(map(chr,range(65,91)))+list(map(chr,range(48,58)))
-#ids = chars[0:10]+["K" + c for c in chars]+chars[11:26]
 
 def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
@@ -32,15 +29,18 @@ def xml2array(xml,s,e,name):
         return array
 
 def print_m(message):
-    root.text.insert("end",message+"\n")
+    root.text.insert("end",message)
     root.text.see(tk.END)
     root.update()
 
 def line_m():
     root.text.delete("end-2l","end-1l")
 
+def print_r(n):
+    root.text.delete("end-"+str(n+1)+"c","end")
+
 def get_metars():
-    print_m("Downloading METAR data ...")
+    print_m("Downloading METAR data ...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
@@ -54,7 +54,7 @@ def get_metars():
 
 
 def get_tafs():
-    print_m("Dowloading TAF data...")
+    print_m("Dowloading TAF data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     tafs = []
@@ -72,12 +72,15 @@ def compile_metars_tafs(airports,metars,tafs):
     n = 0
     data = airports.copy()
     length = len(data)
-    print_m("0"+"%")
+    print_m(" 0%\n")
     for arpts in data:
             n = n+1
             if(n%1000==0):
-                line_m()
-                print_m(str(round(n/length*100))+"%")
+                print_r(4)
+                perc = str(round(n/length*100))+"%\n"
+                if(len(perc)<4):
+                    perc = " "+perc
+                print_m(perc)
             if(any(metars.get('ICAO') == arpts['ICAO'] for metars in metars)):
                 index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['ICAO']), None)
                 arpts['METAR'] = metars[index]['METAR']
@@ -100,22 +103,31 @@ def get_wind(u,v,lat,lon):
     y = get_d(v,lat,lon)
     return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
 
-def get_grib(date,cycle,moment,n):
-    print_m("Downloading wind data...")
+def get_grib(dates,n):
+    print_m("Trying to grab data from "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
+    
+    date = dates['date_f'].strftime("%Y")+dates['date_f'].strftime("%m")+dates['date_f'].strftime("%d")
+    cycle = dates['date_f'].strftime("%H")
+    if(dates['offset']>9):
+        moment = "f0"+str(dates['offset'])
+    else:
+        moment = "f00"+str(dates['offset'])
     
     data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_100_mb=on&lev_150_mb=on&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_400_mb=on&lev_450_mb=on&lev_500_mb=on&lev_550_mb=on&lev_600_mb=on&lev_650_mb=on&lev_700_mb=on&lev_750_mb=on&lev_800_mb=on&lev_850_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
    
     grbs_file = requests.get(data).content
     open('./data/data.'+str(n), 'wb').write(grbs_file)
     if(sys.getsizeof(grbs_file)<100000):
+        print_m("failed.\n")
         return 0
     else :
+        print_m("success.\n")
         return 1
 
-
+#Replaced by an external function because of pygrib incompatibility
 def extract_grib(grbs,data):
-    print_m("Extracting wind data...")
-    print_m("0%")
+    print_m("Extracting wind data...\n")
+    print_m("0%\n")
     for arpts in data :
         arpts['data'] = []
     for i in range(1,48,3):
@@ -123,25 +135,22 @@ def extract_grib(grbs,data):
         u = grbs[i+1].values
         v = grbs[i+2].values
         alt = grbs[i].level
-        line_m()
-        print_m(str(round(i/48*100))+"%")
+        line_m() 
+        print_m(str(round(i/48*100))+"%\n")
         
         for arpts in data :
             lat = float(arpts['lat']) #180
             lon = float(arpts ['lon'])#360
             arpts['data'].extend([{"altitude":mb2feet(alt),"T":get_d(temp,lat,lon)-273.15}|get_wind(u,v,lat,lon)]) 
     line_m()
-    print_m("100%")
+    print_m("100%\n")
 
     return data
-    with open("data.json","w") as data_file:
-        json.dump(data,data_file)
     
 
-
-def compile_data(data,n):
-    print_m("Compiling forecast "+str(n)+" to output format...")
-    with open("./output/out."+str(n),"w") as out_file:
+def compile_output(data,n_layer,n):
+    print_m("Compiling forecast "+str(n+1)+" to output format...\n")
+    with open("./output/out."+str(n),"w+") as out_file:
         line = []
         for arpts in data:
             line = arpts["METAR"]
@@ -156,21 +165,19 @@ def compile_data(data,n):
                 line = line +alt+";"+head+";"+speed+";"+temp+";0|"
             out_file.write(line+"\n")
     
-    print_m("Complete !")
-    shutil.copy("./data/data","./out/output")
 
-n_layer = 16
+
 ### ------------ Welcome interface -------------------
 
-def data_process():
+def get_data_time():
     now = datetime.now(timezone.utc)
-    print_m("Actual time : "+str(now)[0:19]+" UTC")
+    print_m("Actual time : "+str(now)[0:19]+" UTC\n")
 
     date = root.start_field.get()
     if(date == "dd/hh"):
         date = ""
-    forecast = int(root.for_field.get())-1
-    now = now.replace(second=0,minute = 0, microsecond=0)
+    n_forecast = int(root.for_field.get())-1
+    now = now.replace(second=0, minute = 0, microsecond=0)
 
     if(date):
         date = date.split("/")
@@ -186,60 +193,62 @@ def data_process():
     diff = date_d-now
 
     if(diff.total_seconds() < -60*60):
-        print_m("Sorry can't download past data.")
-        return
+        print_m("Sorry can't download past data.\n")
+        return 0
     elif(diff.total_seconds()>60*60*24):
-        print_m("Sorry can't download data more than 24 hours in advance.")
-        return
+        print_m("Sorry can't download data more than 24 hours in advance.\n")
+        return 0
     else:
         h = now.hour
         t_h = math.floor(h/6)
         
-        date_f = now.replace(hour= int(datasets[t_h]))
-        offset = int(round(((date_d-date_f).total_seconds()/(60*60))/3)*3)
+        date_f1 = now.replace(hour= int(datasets[t_h]))
+        offset1 = int(round(((date_d-date_f1).total_seconds()/(60*60))/3)*3)
 
-        print_m("Trying to grab data from "+str(date_f)[0:16]+" UTC release at "+str(offset)+"th hour forecast.")
-        
-        date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
-        cycle = date_f.strftime("%H")
-        moment = "f00"+str(offset)
+        date_f2 = date_f1 - timedelta(hours=6)
+        offset2 = int(round(((date_d-date_f2).total_seconds()/(60*60))/3)*3)
+    
+    return([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
 
-        if(not get_grib(date,cycle,moment,0)):
+
+def data_process():
+
+    dates = get_data_time()
+    if(not dates):
+        return
+
+    n_layer = 16
+
+    if 0:
+        #Get first datasets
+        data_log = open("./data/data","w")
+        n = 0
+        if(not get_grib(dates[n],0)):
+            n = 1
             sleep(5)
             print_m("Data not available yet.")
-            date_f = date_f - timedelta(hours=6)
-            offset = int(round(((date_d-date_f).total_seconds()/(60*60))/3)*3)
-            print_m("Trying to grab data from "+str(date_f)[0:16]+" UTC release at "+str(offset)+"th hour forecast." )
-
-            date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
-            cycle = date_f.strftime("%H")
-            if(offset>9):
-                moment = "f0"+str(offset)
-            else:
-                moment = "f00"+str(offset)
-
-            if(not get_grib(date,cycle,moment,0)):
-                print_m("Error : Couldn't retrieve data...")
+            if(not get_grib(dates[n],0)):
+                print_m("Error : Couldn't retrieve data...\n")
                 return
-        data_log = open("./data/data","w")
-        data_log.write(str(date_f+timedelta(hours=offset))[0:16]+"\n")
+        data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
 
-        if(forecast):
-            date = date_f.strftime("%Y")+date_f.strftime("%m")+date_f.strftime("%d")
-            cycle = date_f.strftime("%H")
-            for i in range(0,forecast):
+
+    #get forecast datasets
+        if(dates[2]['n_forecast']):
+            print_m("Downloading extra forecast data...\n")
+            offset = dates[n]['offset']
+            for i in range(0,dates[2]['n_forecast']):
                 offset = offset+3
-                if(offset>9):
-                    moment = "f0"+str(offset)
-                else:
-                    moment = "f00"+str(offset)
                 sleep(5)
-                data_log.write(str(date_f+timedelta(hours=offset))[0:16]+"\n")
-                if(not get_grib(date,cycle,moment,i+1)):
-                    print_m("Error : Couldn't retrieve data...")
-                return
+                dates[n]['offset'] = offset
+                if(not get_grib(dates[n],i+1)):
+                    print_m("Error : Couldn't retrieve data...\n")
+                    return
+                else:
+                    data_log.write(str(dates[n]['date_f']+timedelta(hours=offset))[0:16]+"\n")
+        print_m("Wind data successfully retrieved...\n")
+
         data_log.close()
-        print_m("Wind data successfully retrieved...")        
 
     with open("./data/airports") as arpts_file:
         airports = json.load(arpts_file)
@@ -248,30 +257,57 @@ def data_process():
     tafs = get_tafs()
 
     met_tafs = compile_metars_tafs(airports,metars,tafs)
+    with open("./data/met_taf","w") as met_taf_file:
+        json.dump(met_tafs,met_taf_file)
+
+    #with open("./data/met_taf","r") as met_taf_file:
+        #met_tafs = json.load(met_taf_file)
+
+
+    #grbs = pygrib.open("./data/data.0")
+            #data = extract_grib(grbs,met_tafs)
+
+    #Uses external module to parse grib to json
+    print_m("Extracting wind data...\n")
+    grib = ctypes.cdll.LoadLibrary('./grib/go_grib.so')
+    parse_grib = grib.parse_grib
+    parse_grib.restype = ctypes.c_void_p
+    parse_grib.argtypes = [ctypes.c_int]
+    ptr = parse_grib(ctypes.c_int(0))
+    out = ctypes.string_at(ptr)
+    data = json.loads(out) 
+    try:
+        shutil.rmtree("./output/*")
+    except:
+        pass
     
-    grbs = pygrib.open("./data/data."+"0")
-    data = extract_grib(grbs,met_tafs)
-    shutil.rmtree("./output/")
-    compile_data(data,0)
+    compile_output(data,n_layer,0)
+    if(dates[2]['n_forecast']):
+        for i in range(0,dates[2]['n_forecast']):
+            #grbs = pygrib.open("./data/data."+str(i+1))
+            #data = extract_grib(grbs,met_tafs)
+            ptr = parse_grib(ctypes.c_int(i+1))
+            out = ctypes.string_at(ptr)
+            data = json.loads(out) 
+            compile_output(data,n_layer,i+1)
 
-    if(forecast):
-        for i in range(0,forecast):
-            grbs = pygrib.open("./data/data."+str(i+1))
-            data = extract_grib(grbs,met_tafs)
-            compile_data(data,i+1)
-
+    print_m("Complete !\n")
+    shutil.copy("./data/data","./output/out")
+    show_data(0)
 #-------- UI -------------------------
 n_entry = 0
 
 
 def show_data(n):
-    with open("./data/data") as logs:
-        dates = logs.readlines()
-    #n = root.slider.get()
-    root.date_field.delete(0,"end")
-    root.date_field.insert(0,dates[int(n)])
-    root.update()
-    shutil.copy("./output/out."+str(n),"./output/current_weather.txt")
+    if(os.path.exists("./output/out.0")):
+        with open("./output/out") as logs:
+            dates = logs.readlines()
+
+        root.date_field.delete(0,"end")
+        root.date_field.insert(0,dates[int(n)])
+        root.slider.set(n)
+        root.update()
+        shutil.copy("./output/out."+str(n),"./output/current_weather.txt")
 
 
 def init():
