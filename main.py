@@ -220,11 +220,6 @@ def get_data_time():
 
 def data_process():
     
-    fail = 0
-    try:
-        requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 1) #just a log to know if my app has some success ! :)
-    except:
-        fail = 1
 
     dates = get_data_time()
     if(not dates):
@@ -305,11 +300,6 @@ def data_process():
             data = json.loads(out) 
             compile_output(data,n_layer,i+1)
 
-    if(fail):
-        try:
-            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 5) #just a log to know if my app has some success ! :)
-        except:
-            pass
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
