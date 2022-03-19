@@ -20,7 +20,6 @@ When available for an airport the METAR and TAF data is displayed. Please note t
 Keep also in mind that the weather data source is a free, but limited service. It is designed to prevent abuse and making a lot of requests will increase downloading time or make it fail.
 
 
-
 ### How it works :
 
 The script fetches raw weather data, METAR and TAF data from the NOAA, US national weather service which is then compiled to a single file that can be imported in PFPX. The data source is updated 4 times in a day, and provide forecasts for every 3 following hours up to 16 days. More than 15000 reference stations (airports) from PFPX are used and windtempe/rature data are provided for each of them. When available, METAR and TAF data is also provided for more than 5000 airports.
