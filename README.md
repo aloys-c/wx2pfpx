@@ -1,4 +1,4 @@
-# wx2pfpx (For requests, contact me on https://github.com/Dakara93/wx2pfpx/issues)
+# wx2pfpx
 
 ## A simple weather data script for the discontinuated Professional Flight Plan X sofware.
 
