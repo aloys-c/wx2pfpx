@@ -19,7 +19,7 @@ a = Analysis(['main.py'],
              noarchive=False)
 pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
-a.datas +=[("./src/icon.png", "src/icon.png","DATA"),("./ReadMe.txt", "./ReadMe.txt","DATA"),("./grib/go_grib.so", "./grib/go_grib.so","DATA")] 
+a.datas +=[("./src/icon.png", "src/icon.png","DATA"),("./ReadMe.txt", "./src/ReadMe.txt","DATA"),("./grib/go_grib.so", "./grib/go_grib.so","DATA")] 
 exe = EXE(pyz,
           a.scripts, 
           a.binaries,
