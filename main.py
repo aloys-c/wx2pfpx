@@ -11,10 +11,17 @@ import pytz
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
+from tkinter import messagebox
 from datetime import datetime,timezone, timedelta
 
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+
+if getattr( sys, 'frozen', False ) :
+                # runs in a pyinstaller bundle
+                path = sys._MEIPASS+"/"
+else :
+    path = "./"
 
 
 def mb2feet(mb):
@@ -104,7 +111,7 @@ def get_wind(u,v,lat,lon):
     return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
 
 def get_grib(dates,n):
-    print_m("Trying to grab data from "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
+    print_m("Trying: "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
     
     date = dates['date_f'].strftime("%Y")+dates['date_f'].strftime("%m")+dates['date_f'].strftime("%d")
     cycle = dates['date_f'].strftime("%H")
@@ -219,14 +226,14 @@ def data_process():
 
     n_layer = 16
 
-    if 0:
+    if 1:
         #Get first datasets
         data_log = open("./data/data","w")
         n = 0
         if(not get_grib(dates[n],0)):
             n = 1
             sleep(5)
-            print_m("Data not available yet.")
+            print_m("Data not available yet.\n")
             if(not get_grib(dates[n],0)):
                 print_m("Error : Couldn't retrieve data...\n")
                 return
@@ -235,7 +242,7 @@ def data_process():
 
     #get forecast datasets
         if(dates[2]['n_forecast']):
-            print_m("Downloading extra forecast data...\n")
+            print_m("Downloading extra forecast data:\n")
             offset = dates[n]['offset']
             for i in range(0,dates[2]['n_forecast']):
                 offset = offset+3
@@ -269,7 +276,7 @@ def data_process():
 
     #Uses external module to parse grib to json
     print_m("Extracting wind data...\n")
-    grib = ctypes.cdll.LoadLibrary('./grib/go_grib.so')
+    grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
     parse_grib = grib.parse_grib
     parse_grib.restype = ctypes.c_void_p
     parse_grib.argtypes = [ctypes.c_int]
@@ -293,7 +300,7 @@ def data_process():
 
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
-    show_data(0)
+    init()
 #-------- UI -------------------------
 n_entry = 0
 
@@ -304,49 +311,85 @@ def show_data(n):
             dates = logs.readlines()
 
         root.date_field.delete(0,"end")
-        root.date_field.insert(0,dates[int(n)])
+        root.date_field.insert(0,dates[int(n)-1])
         root.slider.set(n)
         root.update()
-        shutil.copy("./output/out."+str(n),"./output/current_weather.txt")
+        shutil.copy("./output/out."+str(int(n)-1),"./output/current_weather.txt")
 
 
 def init():
-    global n_entry
-    with open("./data/data") as logs:
-        dates = logs.readlines()
-        n_entry = len(dates)
-    root.slider= tk.Scale(root, from_=0, to=n_entry-1, orient=tk.HORIZONTAL,label = "Forecast offset:",command = show_data )
-    root.slider.grid(column = 3,row = 0)
-    show_data(0)
+    if(os.path.exists("./output/out.0")):
+        with open("./output/out") as logs:
+            dates = logs.readlines()
+            n_entry = len(dates)
+    else:
+        n_entry = 0
+    root.slider= tk.Scale(root.left, from_=1, to=n_entry, orient=tk.HORIZONTAL,label = "Forecast :",command = show_data )
+    root.slider.grid(column = 0,row = 0,padx = (10,5),pady = (0,2))
+    show_data(1)
+    root.start_field.delete(0,"end")
     root.start_field.insert(0,"dd/hh")
+    root.start_field.bind("<Button-1>", clear_search) 
+    root.for_field.delete(0,"end")
     root.for_field.insert(0,"1")
     root.update()
 
 
+def clear_search(event):
+   root.start_field.delete(0, tk.END) 
+
+
+
+
+def read_me():
+    executable = os.path.realpath(os.path.dirname(sys.argv[0]))
+    os.startfile(path+"ReadMe.txt")
+    messagebox.showinfo('', 'Please read ReadMe.txt in:'+executable)
+    shutil.copy(path+"ReadMe.txt",executable)
+    
+
+    
+
 root = tk.Tk()
-root.date_label = tk.Label(root,text = "Start date (optionnal):",width =20)
-root.date_label.grid(column =0,row=0)
-root.start_field = tk.Entry(root,width=8)
-root.start_field.grid( column = 1,row=0,sticky=tk.W)
-root.for_label = tk.Label(root,text = "Number of forecasts (1-4)")
-root.for_label.grid(column =0,row=1)
-root.for_field = tk.Entry(root, text = "0",width=8)
-root.for_field.grid( column = 1,row=1,sticky=tk.W)
-root.button = tk.Button(root,text = "Download data", command = data_process)
-root.button.grid(column = 2,row = 0,rowspan =2,sticky=tk.W)
-root.date_field = tk.Entry(root, text = "",width=20)
-root.date_field.grid( column = 3,row=1)
+root.left = tk.LabelFrame(root, text="Curent data", width = 130,height = 110)
+root.left.grid_propagate(0)
+root.left.grid(row=0,column =0,pady=(0,10))
+
+root.right = tk.LabelFrame(root, text="Update data", width =380,height = 110)
+root.right.grid(row=0,column =1,pady=(0,10))
+root.right.grid_propagate(0)
+
+root.date_field = tk.Entry(root.left, text = "",width=15)
+root.date_field.grid( column = 0,row=1,padx = (10,5))
 root.slider = None
-root.text = tk.Text(width = 100,height = 20)
-root.text.grid(row =2,column =0,columnspan=4)
+
+root.date_label = tk.Label(root.right,text = "Start date (optionnal) :",width =20)
+root.date_label.grid(column =0,row=1,pady=(0,10),padx = (10,5))
+root.start_field = tk.Entry(root.right,width=8)
+root.start_field.grid( column = 1,row=1,sticky=tk.W,pady=(0,10),padx = (5,5))
+root.for_label = tk.Label(root.right,text = "Number of forecasts (1-4) :")
+root.for_label.grid(column =0,row=0,pady=(16,10),padx = (10,5))
+root.for_field = tk.Entry(root.right, text = "0",width=8)
+root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(16,10),padx = (5,5))
+root.button = tk.Button(root.right,text = "Download data", command = data_process)
+root.button.grid(column = 2,row = 0,rowspan =2,sticky=tk.E,pady=(8,0),padx=(25,0))
+root.help = tk.Button(root.right,text = "?", command = read_me)
+root.help.grid(column = 3,row = 0,rowspan = 2,sticky=tk.W,pady=(8,0))
+
+root.text = tk.Text(width = 70,height = 10)
+root.text.grid(row =2,column =0,columnspan=2)
+
+icon = tk.PhotoImage(file = path+'src/icon.png')
+root.iconphoto(False, icon)
+
 
 init()
 
 root.title("Wx2pfpx")
+root.resizable(0, 0)
 
 # Run and display the window
 root.mainloop()
-
 
 
 # ------------------------- GRAPHICS ----------------------
