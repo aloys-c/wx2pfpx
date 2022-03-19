@@ -12,3 +12,4 @@ powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx1.0.zi
 
 
 rmdir /s /q "build"
+rmdir /s /q "dist"

@@ -219,8 +219,12 @@ def get_data_time():
 
 
 def data_process():
-
-   
+    
+    fail = 0
+    try:
+        requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 1) #just a log to know if my app has some success ! :)
+    except:
+        fail = 1
 
     dates = get_data_time()
     if(not dates):
@@ -241,10 +245,7 @@ def data_process():
                 return
         data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
 
-    try:
-        requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 0.1) #just a log to know if my app has some success ! :)
-    except:
-        pass
+
 
     #get forecast datasets
         if(dates[2]['n_forecast']):
@@ -304,9 +305,17 @@ def data_process():
             data = json.loads(out) 
             compile_output(data,n_layer,i+1)
 
+    if(fail):
+        try:
+            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 5) #just a log to know if my app has some success ! :)
+        except:
+            pass
+    
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
     init()
+    
+    
 #-------- UI -------------------------
 n_entry = 0
 
@@ -387,7 +396,6 @@ root.text.grid(row =2,column =0,columnspan=2)
 
 icon = tk.PhotoImage(file = path+'src/icon.png')
 root.iconphoto(False, icon)
-
 
 init()
 
