@@ -220,7 +220,7 @@ def get_data_time():
 
 def data_process():
 
-    requests.get("https://my-wordle.herokuapp.com/wx2pfpx?log=1") #Just so I know if people use my script :)
+   
 
     dates = get_data_time()
     if(not dates):
@@ -241,6 +241,10 @@ def data_process():
                 return
         data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
 
+    try:
+        requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=1",timeout = 0.1) #just a log to know if my app has some success ! :)
+    except:
+        pass
 
     #get forecast datasets
         if(dates[2]['n_forecast']):
