@@ -122,7 +122,6 @@ def get_grib(dates,n):
     
     data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_100_mb=on&lev_150_mb=on&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_400_mb=on&lev_450_mb=on&lev_500_mb=on&lev_550_mb=on&lev_600_mb=on&lev_650_mb=on&lev_700_mb=on&lev_750_mb=on&lev_800_mb=on&lev_850_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
    
-    requests.get("https://my-wordle.herokuapp.com/wx2pfpx?log=1") #Just so I know if people use my script :)
     grbs_file = requests.get(data).content
     open('./data/data.'+str(n), 'wb').write(grbs_file)
     if(sys.getsizeof(grbs_file)<100000):
@@ -220,6 +219,8 @@ def get_data_time():
 
 
 def data_process():
+
+    requests.get("https://my-wordle.herokuapp.com/wx2pfpx?log=1") #Just so I know if people use my script :)
 
     dates = get_data_time()
     if(not dates):
