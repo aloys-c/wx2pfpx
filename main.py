@@ -219,11 +219,12 @@ def get_data_time():
 
 
 def data_process():
-    
+   
 
     dates = get_data_time()
     if(not dates):
         return
+
 
     n_layer = 16
 
@@ -408,6 +409,5 @@ root.mainloop()
         #ax.quiver(x/10,y/10,u[y][x]/25,v[y][x]/25,color="red",width = 0.002,scale = 1,scale_units ='xy')
 
 #ax.axis([0,36,0,18])
-
 
 #plt.show()    
