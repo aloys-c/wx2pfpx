@@ -47,7 +47,7 @@ def print_r(n):
     root.text.delete("end-"+str(n+1)+"c","end")
 
 def get_metars():
-    print_m("Downloading METAR data ...\n")
+    print_m("Downloading METAR data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
@@ -300,6 +300,7 @@ def data_process():
             out = ctypes.string_at(ptr)
             data = json.loads(out) 
             compile_output(data,n_layer,i+1)
+
 
     
     print_m("Complete !\n")
