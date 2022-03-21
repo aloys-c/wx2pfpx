@@ -2,7 +2,8 @@
 from math import atan2
 import requests
 import xml.etree.ElementTree as ET
-#import pygrib
+#import pygrib #Doesn't work well under windows, can be install on anaconda though for testing.
+#from mpl_toolkits.basemap import Basemap
 #import matplotlib.pyplot as plt
 import json
 import ctypes
@@ -59,9 +60,87 @@ def get_metars():
 
     return metars
 
+# ------------------------- GRAPHICS ----------------------
+
+
+def get_d(tab,lat,lon):
+    return tab[int(180-round(90+lat,0))][int(round(360+lon,0))%360]
+
+def show_data_plot(n):
+    #grib = pygrib.open("./data/data."+str(n))
+    fig, ax = plt.subplots(figsize = (36,18))
+    img = plt.imread("world-map.jpg")
+    ax.axis([-18,18,-9,9])
+    ax.imshow(img,extent=[-16, 18, -9, 9])
+    n = 17
+    print(mb2feet(grib[n].level))
+    u = grib[n].values
+    v = grib[n+1].values
+    for x in range(-180,180,5):
+        for y in range(-90,90,5):
+            #ax.quiver(((x+180)%360)/10,18-y/10,u[y][x]/75,v[y][x]/75,color="red",width = 0.002,scale = 1,scale_units ='xy')
+            ax.quiver(x/10,y/10,get_d(u,y,x)/75,get_d(v,y,x)/75,color="red",width = 0.002,scale = 1,scale_units ='xy')
+        
+    #[lat, lon]
+    #cape town, newyork, sydney, moscow,
+    cities =[[-33,18.5],[40,-74],[-34,151],[56,37.5]] 
+   
+    for city in cities:
+        ax.scatter((city[1])/10,(city[0])/10)
+
+    plt.show()    
+
+def show_map_density():
+    with open("./data/airports") as arpts_file:
+            airports = json.load(arpts_file)
+
+   
+    fig = plt.figure(figsize=(36, 18))
+    m = Basemap(projection='cyl',lon_0=0.0, lat_0=0.0,width=36E6, height=18E6, resolution='c')
+    m.drawcoastlines()
+    
+
+    for i in range(0,len(airports)):
+        if(i%1 ==0):
+            if(i%100 ==0):
+                print(i)
+            y = round(float(airports[i]['lat']))
+            x = round(float(airports[i]['lon']))
+            m.scatter(x,y,color="red",s=1)
+
+    plt.show()
+
+def show_output_plot(data):
+    print(len(data))
+    fig, ax = plt.subplots(figsize = (36,18))
+    img = plt.imread("world-map.jpg")
+    ax.imshow(img,extent=[2, 36, 0, 18])
+    n = 17
+    print(data[1]['data'][6]['altitude'])
+    for i in range(0,len(data)):
+        if(i%5 ==0):
+            airport = data[i]
+            print(i)
+          
+            y = round(float(airport['lat']))
+            x = round(float(airport['lon']))
+            u = airport['data'][6]['u']
+            v = airport['data'][6]['v']
+            
+            ax.quiver(((x+180)%360)/10,(90+y)/10,u/50,v/50,color="red",width = 0.001,scale = 1,scale_units ='xy')
+        
+    #[lat, lon]
+    #cape town, newyork, sydney, moscow,
+    #cities =[[-33,18.5],[40,-74],[-34,151],[56,37.5]] 
+   
+    #for city in cities:
+        #ax.scatter((180+city[1])/10,(90+city[0])/10)
+
+    #ax.axis([0,36,0,18])
+    #plt.show()  
 
 def get_tafs():
-    print_m("Dowloading TAF data...\n")
+    print_m("Downloading TAF data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     tafs = []
@@ -102,9 +181,6 @@ def compile_metars_tafs(airports,metars,tafs):
     return data
 
 
-def get_d(tab,lat,lon):
-    return tab[int(round(90+lat,0))][int(round(180+lon,0))%360]
-
 def get_wind(u,v,lat,lon):
     x = get_d(u,lat,lon)
     y = get_d(v,lat,lon)
@@ -112,7 +188,7 @@ def get_wind(u,v,lat,lon):
 
 def get_grib(dates,n):
     print_m("Trying: "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
-    
+    sleep(5)
     date = dates['date_f'].strftime("%Y")+dates['date_f'].strftime("%m")+dates['date_f'].strftime("%d")
     cycle = dates['date_f'].strftime("%H")
     if(dates['offset']>9):
@@ -166,7 +242,7 @@ def compile_output(data,n_layer,n):
             line = line+"~"
             for i in range(n_layer-1,-1,-1):
                 alt = str(round(arpts['data'][i]['altitude']))
-                head = str(round(arpts['data'][i]['head']))
+                head = str((round(arpts['data'][i]['head'])+180)%360)
                 speed = str(round(arpts['data'][i]['speed']))
                 temp = str(round(arpts['data'][i]['T']))
                 line = line +alt+";"+head+";"+speed+";"+temp+";0|"
@@ -225,7 +301,7 @@ def data_process():
     if(not dates):
         return
 
-    
+
 
     n_layer = 16
 
@@ -235,7 +311,6 @@ def data_process():
         n = 0
         if(not get_grib(dates[n],0)):
             n = 1
-            sleep(5)
             print_m("Data not available yet.\n")
             if(not get_grib(dates[n],0)):
                 print_m("Error : Couldn't retrieve data...\n")
@@ -261,47 +336,65 @@ def data_process():
 
         data_log.close()
 
-    with open("./data/airports") as arpts_file:
-        airports = json.load(arpts_file)
+    if 1:
+        with open("./data/airports") as arpts_file:
+            airports = json.load(arpts_file)
 
-    metars = get_metars()
-    tafs = get_tafs()
+        metars = get_metars()
+        tafs = get_tafs()
 
-    met_tafs = compile_metars_tafs(airports,metars,tafs)
-    with open("./data/met_taf","w") as met_taf_file:
-        json.dump(met_tafs,met_taf_file)
+        met_tafs = compile_metars_tafs(airports,metars,tafs)
+        with open("./data/met_taf","w") as met_taf_file:
+            json.dump(met_tafs,met_taf_file)
 
-    #with open("./data/met_taf","r") as met_taf_file:
-        #met_tafs = json.load(met_taf_file)
+            
 
-
-    #grbs = pygrib.open("./data/data.0")
-            #data = extract_grib(grbs,met_tafs)
-
-    #Uses external module to parse grib to json
-    print_m("Extracting wind data...\n")
-    grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
-    parse_grib = grib.parse_grib
-    parse_grib.restype = ctypes.c_void_p
-    parse_grib.argtypes = [ctypes.c_int]
-    ptr = parse_grib(ctypes.c_int(0))
-    out = ctypes.string_at(ptr)
-    data = json.loads(out) 
     try:
         shutil.rmtree("./output/*")
     except:
         pass
-    
-    compile_output(data,n_layer,0)
-    if(dates[2]['n_forecast']):
-        for i in range(0,dates[2]['n_forecast']):
-            #grbs = pygrib.open("./data/data."+str(i+1))
-            #data = extract_grib(grbs,met_tafs)
-            ptr = parse_grib(ctypes.c_int(i+1))
-            out = ctypes.string_at(ptr)
-            data = json.loads(out) 
-            compile_output(data,n_layer,i+1)
+   
+   
+    if 0:
+    #uses internal function
+        #grbs = pygrib.open("./data/data.0")
+        with open("./data/met_taf","r") as met_taf_file:
+            met_tafs = json.load(met_taf_file)
 
+        data = extract_grib(grbs,met_tafs)
+        compile_output(data,n_layer,0)
+
+        if(dates[2]['n_forecast']):
+            for i in range(0,dates[2]['n_forecast']):
+                #uses internal function
+
+                #with pygrib.open("./data/data."+str(i+1)) as grbs:
+                    #data = extract_grib(grbs,met_tafs)
+                compile_output(data,n_layer,i+1)
+    
+    else:
+        #Uses external module to parse grib to json
+        print_m("Extracting wind data...\n")
+        grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
+        parse_grib = grib.parse_grib
+        parse_grib.restype = ctypes.c_void_p
+        parse_grib.argtypes = [ctypes.c_int]
+        ptr = parse_grib(ctypes.c_int(0))
+        out = ctypes.string_at(ptr)
+        data = json.loads(out) 
+        compile_output(data,n_layer,0)
+    
+        if(dates[2]['n_forecast']):
+            for i in range(0,dates[2]['n_forecast']):
+                #uses external module
+                ptr = parse_grib(ctypes.c_int(i+1))
+                out = ctypes.string_at(ptr)
+                data = json.loads(out) 
+                compile_output(data,n_layer,i+1)
+
+   #show_map_density()
+    #show_data_plot(0)
+    #show_output_plot(data)
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
@@ -340,11 +433,11 @@ def init():
     root.for_field.delete(0,"end")
     root.for_field.insert(0,"1")
     root.update()
+    
 
 
 def clear_search(event):
    root.start_field.delete(0, tk.END) 
-
 
 
 
@@ -396,19 +489,3 @@ root.resizable(0, 0)
 
 # Run and display the window
 root.mainloop()
-
-
-# ------------------------- GRAPHICS ----------------------
-#fig, ax = plt.subplots(figsize = (36,18))
-#img = plt.imread("world-map.jpg")
-#ax.imshow(img,extent=[0, 36, 0, 18])
-#n = 17
-#u = grbs[n].values
-#v = grbs[n+1].values
-#for x in range(0,360,5):
-    #for y in range(0,180,5):
-        #ax.quiver(x/10,y/10,u[y][x]/25,v[y][x]/25,color="red",width = 0.002,scale = 1,scale_units ='xy')
-
-#ax.axis([0,36,0,18])
-
-#plt.show()    
