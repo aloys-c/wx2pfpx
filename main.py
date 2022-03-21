@@ -302,7 +302,6 @@ def data_process():
         return
 
 
-
     n_layer = 16
 
     if 1:
