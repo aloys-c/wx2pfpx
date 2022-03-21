@@ -225,6 +225,7 @@ def data_process():
     if(not dates):
         return
 
+    
 
     n_layer = 16
 
@@ -300,7 +301,6 @@ def data_process():
             out = ctypes.string_at(ptr)
             data = json.loads(out) 
             compile_output(data,n_layer,i+1)
-
 
     
     print_m("Complete !\n")
