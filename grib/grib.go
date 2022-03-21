@@ -92,7 +92,7 @@ func Pa2feet(pa float64) int {
 }
 
 func get_i(lat float64, lon float64) int {
-	i := int(math.Round(lat+90)*Ni + math.Mod(math.Round(lon+180), 360)) //Ni or Nj
+	i := int((180-math.Round(lat+90))*Ni + math.Mod(math.Round(lon+360), 360)) //Ni or Nj
 	return i
 }
 
