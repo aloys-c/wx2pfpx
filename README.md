@@ -16,11 +16,11 @@ The script keeps track of last downloaded data and they can be directly browsed,
 To download new data, you have the following options : 
 - select a starting time (up to 24 hours in the future). 
 - The number of forecasts you want to fetch. 
-- Using a station network or a grid to import the data. 
+- Using a stations network or a grid to import the data. 
 
 Clicking on the download button will generate a new dataset that will be saved on the Hard Drive and replace the previous one.
 
-When available for an airport, the METAR and TAF data is displayed. 
+When available for an airport, the METAR and TAF data is also displayed. 
 
 Keep in mind that the weather data source is a free, but limited service. It is designed to prevent abuse and making a lot of requests will increase downloading time or make it fail.
 
