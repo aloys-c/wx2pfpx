@@ -3,8 +3,6 @@ from math import atan2
 import requests
 import xml.etree.ElementTree as ET
 #import pygrib #Doesn't work well under windows, can be install on anaconda though for testing.
-#from mpl_toolkits.basemap import Basemap
-#import matplotlib.pyplot as plt
 import json
 import ctypes
 import math
@@ -12,11 +10,13 @@ import pytz
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox,StringVar,Radiobutton
 from datetime import datetime,timezone, timedelta
 
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+
+
 
 if getattr( sys, 'frozen', False ) :
                 # runs in a pyinstaller bundle
@@ -24,6 +24,7 @@ if getattr( sys, 'frozen', False ) :
 else :
     path = "./"
 
+#------------------- low level functions --------------------------------
 
 def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
@@ -47,6 +48,17 @@ def line_m():
 def print_r(n):
     root.text.delete("end-"+str(n+1)+"c","end")
 
+
+def get_d(tab,lat,lon):
+    return tab[int(180-round(90+lat,0))][int(round(360+lon,0))%360]
+
+def get_wind(u,v,lat,lon):
+    x = get_d(u,lat,lon)
+    y = get_d(v,lat,lon)
+    return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
+
+#------------------------------------ High level functions --------------------------------
+
 def get_metars():
     print_m("Downloading METAR data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
@@ -60,84 +72,6 @@ def get_metars():
 
     return metars
 
-# ------------------------- GRAPHICS ----------------------
-
-
-def get_d(tab,lat,lon):
-    return tab[int(180-round(90+lat,0))][int(round(360+lon,0))%360]
-
-def show_data_plot(n):
-    #grib = pygrib.open("./data/data."+str(n))
-    fig, ax = plt.subplots(figsize = (36,18))
-    img = plt.imread("world-map.jpg")
-    ax.axis([-18,18,-9,9])
-    ax.imshow(img,extent=[-16, 18, -9, 9])
-    n = 17
-    print(mb2feet(grib[n].level))
-    u = grib[n].values
-    v = grib[n+1].values
-    for x in range(-180,180,5):
-        for y in range(-90,90,5):
-            #ax.quiver(((x+180)%360)/10,18-y/10,u[y][x]/75,v[y][x]/75,color="red",width = 0.002,scale = 1,scale_units ='xy')
-            ax.quiver(x/10,y/10,get_d(u,y,x)/75,get_d(v,y,x)/75,color="red",width = 0.002,scale = 1,scale_units ='xy')
-        
-    #[lat, lon]
-    #cape town, newyork, sydney, moscow,
-    cities =[[-33,18.5],[40,-74],[-34,151],[56,37.5]] 
-   
-    for city in cities:
-        ax.scatter((city[1])/10,(city[0])/10)
-
-    plt.show()    
-
-def show_map_density():
-    with open("./data/airports") as arpts_file:
-            airports = json.load(arpts_file)
-
-   
-    fig = plt.figure(figsize=(36, 18))
-    m = Basemap(projection='cyl',lon_0=0.0, lat_0=0.0,width=36E6, height=18E6, resolution='c')
-    m.drawcoastlines()
-    
-
-    for i in range(0,len(airports)):
-        if(i%1 ==0):
-            if(i%100 ==0):
-                print(i)
-            y = round(float(airports[i]['lat']))
-            x = round(float(airports[i]['lon']))
-            m.scatter(x,y,color="red",s=1)
-
-    plt.show()
-
-def show_output_plot(data):
-    print(len(data))
-    fig, ax = plt.subplots(figsize = (36,18))
-    img = plt.imread("world-map.jpg")
-    ax.imshow(img,extent=[2, 36, 0, 18])
-    n = 17
-    print(data[1]['data'][6]['altitude'])
-    for i in range(0,len(data)):
-        if(i%5 ==0):
-            airport = data[i]
-            print(i)
-          
-            y = round(float(airport['lat']))
-            x = round(float(airport['lon']))
-            u = airport['data'][6]['u']
-            v = airport['data'][6]['v']
-            
-            ax.quiver(((x+180)%360)/10,(90+y)/10,u/50,v/50,color="red",width = 0.001,scale = 1,scale_units ='xy')
-        
-    #[lat, lon]
-    #cape town, newyork, sydney, moscow,
-    #cities =[[-33,18.5],[40,-74],[-34,151],[56,37.5]] 
-   
-    #for city in cities:
-        #ax.scatter((180+city[1])/10,(90+city[0])/10)
-
-    #ax.axis([0,36,0,18])
-    #plt.show()  
 
 def get_tafs():
     print_m("Downloading TAF data...\n")
@@ -162,29 +96,25 @@ def compile_metars_tafs(airports,metars,tafs):
     for arpts in data:
             n = n+1
             if(n%1000==0):
+
                 print_r(4)
                 perc = str(round(n/length*100))+"%\n"
                 if(len(perc)<4):
                     perc = " "+perc
                 print_m(perc)
-            if(any(metars.get('ICAO') == arpts['ICAO'] for metars in metars)):
-                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['ICAO']), None)
+            if(any(metars.get('ICAO') == arpts['code'] for metars in metars)):
+                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['code']), None)
                 arpts['METAR'] = metars[index]['METAR']
             else:
-                arpts['METAR'] = arpts['ICAO']
+                arpts['METAR'] = 0
             
-            if(any(tafs.get('ICAO') == arpts['ICAO'] for tafs in tafs)):
-                index = next((index for (index, d) in enumerate(tafs) if d["ICAO"] == arpts['ICAO']), None)
+            if(any(tafs.get('ICAO') == arpts['code'] for tafs in tafs)):
+                index = next((index for (index, d) in enumerate(tafs) if d["ICAO"] == arpts['code']), None)
                 arpts['TAF'] = tafs[index]['TAF']
             else:
                 arpts['TAF'] = 0
     return data
 
-
-def get_wind(u,v,lat,lon):
-    x = get_d(u,lat,lon)
-    y = get_d(v,lat,lon)
-    return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
 
 def get_grib(dates,n):
     print_m("Trying: "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
@@ -196,7 +126,7 @@ def get_grib(dates,n):
     else:
         moment = "f00"+str(dates['offset'])
     
-    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_100_mb=on&lev_150_mb=on&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_400_mb=on&lev_450_mb=on&lev_500_mb=on&lev_550_mb=on&lev_600_mb=on&lev_650_mb=on&lev_700_mb=on&lev_750_mb=on&lev_800_mb=on&lev_850_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
+    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_450_mb=on&lev_600_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
    
     grbs_file = requests.get(data).content
     open('./data/data.'+str(n), 'wb').write(grbs_file)
@@ -233,24 +163,29 @@ def extract_grib(grbs,data):
 
 def compile_output(data,n_layer,n):
     print_m("Compiling forecast "+str(n+1)+" to output format...\n")
-    with open("./output/out."+str(n),"w+") as out_file:
+    with open("./output/out."+str(n),"w") as out_file:
         line = []
         for arpts in data:
-            line = arpts["METAR"]
+            line = arpts["code"]
+           
+            if arpts['METAR']:
+                line = line+ "::"+arpts["METAR"]+"::"
+            else :
+                line = line+ "::*::"
             if(arpts['TAF']):
-                line = line +" | "+arpts["TAF"]
-            line = line+"~"
+                line = line+arpts["TAF"]+"::"
+            else:
+                line =line+ "*::"
+            
             for i in range(n_layer-1,-1,-1):
-                alt = str(round(arpts['data'][i]['altitude']))
+                #alt = str(round(arpts['data'][i]['altitude']))
                 head = str((round(arpts['data'][i]['head'])+180)%360)
                 speed = str(round(arpts['data'][i]['speed']))
                 temp = str(round(arpts['data'][i]['T']))
-                line = line +alt+";"+head+";"+speed+";"+temp+";0|"
+                line = line+head+","+speed+","+temp+"/"
             out_file.write(line+"\n")
     
-
-
-### ------------ Welcome interface -------------------
+    
 
 def get_data_time():
     now = datetime.now(timezone.utc)
@@ -294,16 +229,21 @@ def get_data_time():
     return([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
 
 
+#------------------------ Main function (Download) ---------------------------------
+
 def data_process():
    
+   #Number of layers in the grib file
+    n_layer = 9
+    grid = int(var_radio.get())
 
     dates = get_data_time()
     if(not dates):
         return
 
 
-    n_layer = 16
-
+    
+    #Get the wind data
     if 1:
         #Get first datasets
         data_log = open("./data/data","w")
@@ -315,7 +255,6 @@ def data_process():
                 print_m("Error : Couldn't retrieve data...\n")
                 return
         data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
-
 
 
     #get forecast datasets
@@ -335,6 +274,7 @@ def data_process():
 
         data_log.close()
 
+    #Get the metars
     if 1:
         with open("./data/airports") as arpts_file:
             airports = json.load(arpts_file)
@@ -345,15 +285,13 @@ def data_process():
         met_tafs = compile_metars_tafs(airports,metars,tafs)
         with open("./data/met_taf","w") as met_taf_file:
             json.dump(met_tafs,met_taf_file)
-
-            
-
+  
     try:
         shutil.rmtree("./output/*")
     except:
         pass
    
-   
+ 
     if 0:
     #uses internal function
         #grbs = pygrib.open("./data/data.0")
@@ -377,30 +315,43 @@ def data_process():
         grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
         parse_grib = grib.parse_grib
         parse_grib.restype = ctypes.c_void_p
-        parse_grib.argtypes = [ctypes.c_int]
-        ptr = parse_grib(ctypes.c_int(0))
+        parse_grib.argtypes = [ctypes.c_int,ctypes.c_int]
+        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(grid))
         out = ctypes.string_at(ptr)
-        data = json.loads(out) 
+        airports_out = json.loads(out) 
+        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(2))
+        out = ctypes.string_at(ptr)
+        stations_out = json.loads(out) 
+        data = airports_out
+        data.extend(stations_out)
+        #with open("./test","w") as met_taf_file:
+                #json.dump(data,met_taf_file)
         compile_output(data,n_layer,0)
     
         if(dates[2]['n_forecast']):
             for i in range(0,dates[2]['n_forecast']):
                 #uses external module
-                ptr = parse_grib(ctypes.c_int(i+1))
+                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(grid))
                 out = ctypes.string_at(ptr)
-                data = json.loads(out) 
+                airports_out = json.loads(out) 
+                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(2))
+                out = ctypes.string_at(ptr)
+                stations_out = json.loads(out) 
+                data = airports_out.extend(stations_out)
                 compile_output(data,n_layer,i+1)
 
-   #show_map_density()
-    #show_data_plot(0)
-    #show_output_plot(data)
+    if(grid):
+        shutil.copy("./data/grid.list","./output/wx_station_list.txt")
+    else:
+        shutil.copy("./data/stations.list","./output/wx_station_list.txt")
+
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
     init()
     
     
-#-------- UI -------------------------
+#------------------- UI -------------------------
 n_entry = 0
 
 
@@ -408,19 +359,25 @@ def show_data(n):
     if(os.path.exists("./output/out.0")):
         with open("./output/out") as logs:
             dates = logs.readlines()
-
+        
         root.date_field.delete(0,"end")
         root.date_field.insert(0,dates[int(n)-1])
         root.slider.set(n)
         root.update()
-        shutil.copy("./output/out."+str(int(n)-1),"./output/current_weather.txt")
+        shutil.copy("./output/out."+str(int(n)-1),"./output/current_wx_snapshot.txt")
 
 
 def init():
     if(os.path.exists("./output/out.0")):
-        with open("./output/out") as logs:
-            dates = logs.readlines()
-            n_entry = len(dates)
+        try:
+            with open("./output/out") as logs:
+                dates = logs.readlines()
+                n_entry = len(dates)
+        except:
+                shutil.copy("./data/data","./output/out")
+                init()
+                return
+                
     else:
         n_entry = 0
     root.slider= tk.Scale(root.left, from_=1, to=n_entry, orient=tk.HORIZONTAL,label = "Forecast :",command = show_data )
@@ -431,13 +388,13 @@ def init():
     root.start_field.bind("<Button-1>", clear_search) 
     root.for_field.delete(0,"end")
     root.for_field.insert(0,"1")
+    if(var_radio.get()=="2"):
+        var_radio.set(0)
     root.update()
     
 
-
 def clear_search(event):
    root.start_field.delete(0, tk.END) 
-
 
 
 def read_me():
@@ -445,8 +402,6 @@ def read_me():
     os.startfile(path+"ReadMe.txt")
     messagebox.showinfo('', 'Please read ReadMe.txt in:'+executable)
     shutil.copy(path+"ReadMe.txt",executable)
-    
-
     
 
 root = tk.Tk()
@@ -470,10 +425,21 @@ root.for_label = tk.Label(root.right,text = "Number of forecasts (1-4) :")
 root.for_label.grid(column =0,row=0,pady=(16,10),padx = (10,5))
 root.for_field = tk.Entry(root.right, text = "0",width=8)
 root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(16,10),padx = (5,5))
+
+var_radio = StringVar()
+var_radio.set(2)
+ 
+root.radio_1 = Radiobutton(root.right, text = "Stations", variable = var_radio, value = 0)
+root.radio_1.grid(column = 2,row = 0, padx=(12,0),pady=(6,0))
+ 
+root.radio_2 = Radiobutton(root.right, text = "Grid", variable = var_radio, value = 1)
+root.radio_2.grid(column=3,columnspan=2,row = 0,pady=(6,0))
+
+
 root.button = tk.Button(root.right,text = "Download data", command = data_process)
-root.button.grid(column = 2,row = 0,rowspan =2,sticky=tk.E,pady=(8,0),padx=(25,0))
+root.button.grid(column = 2,row = 1,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
 root.help = tk.Button(root.right,text = "?", command = read_me)
-root.help.grid(column = 3,row = 0,rowspan = 2,sticky=tk.W,pady=(8,0))
+root.help.grid(column = 4,row = 1,sticky=tk.W,pady=(0,11))
 
 root.text = tk.Text(width = 70,height = 10)
 root.text.grid(row =2,column =0,columnspan=2)
