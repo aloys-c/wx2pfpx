@@ -13,8 +13,8 @@ import tkinter as tk
 from tkinter import messagebox,StringVar,Radiobutton
 from datetime import datetime,timezone, timedelta
 
-metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
-taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 
 
 
@@ -29,13 +29,20 @@ else :
 def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
 
-def xml2array(xml,s,e,name):
+def xml2array(xml,name):
         array = []
+        item = ""
+        n=0
         root = ET.fromstring(xml)
         for child in root.iter('*'):
-            if("raw_text" in child.tag):
-                array.append({"ICAO":child.text[s:e],name:child.text})
+            if(n):
+                n = 0
+                array.extend([{"ICAO":child.text,name:item}])
+            if(("raw_text" in child.tag) and (not (child.text[0] == "\n"))):
+                item = child.text
+                n = 1
         return array
+           
 
 def print_m(message):
     root.text.insert("end",message)
@@ -67,9 +74,8 @@ def get_metars():
 
     for i in ids:
         response = requests.get(metar_url+i)
-        temp = xml2array(response.content,0,4,"METAR")
+        temp = xml2array(response.content,"METAR")
         metars.extend(temp)
-
     return metars
 
 
@@ -81,7 +87,7 @@ def get_tafs():
 
     for i in ids:
         response = requests.get(taf_url+i)
-        temp = xml2array(response.content,8,12,"TAF")
+        temp = xml2array(response.content,"TAF")
         tafs.extend(temp)
 
     return tafs
@@ -92,6 +98,8 @@ def compile_metars_tafs(airports,metars,tafs):
     n = 0
     data = airports.copy()
     length = len(data)
+    print(len(metars))
+    print(len(tafs))
     print_m(" 0%\n")
     for arpts in data:
             n = n+1
@@ -241,12 +249,6 @@ def data_process():
     if(not dates):
         return
 
-        
-    try:
-       requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=4&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid),timeout = 2) #just a log to know if my app has some success ! :)
-    except:
-       pass
-
 
     
     #Get the wind data
@@ -351,10 +353,6 @@ def data_process():
     else:
         shutil.copy("./data/stations.list","./output/wx_station_list.txt")
 
-    try:
-       requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=4&n_for="+str(dates[2]['n_forecast']+1)+"&grid "+var_radio.get(),timeout = 10) #just a log to know if my app has some success ! :)
-    except:
-       pass
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
