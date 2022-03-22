@@ -250,6 +250,7 @@ def data_process():
         return
 
 
+
     
     #Get the wind data
     if 1:
@@ -352,6 +353,7 @@ def data_process():
         shutil.copy("./data/grid.list","./output/wx_station_list.txt")
     else:
         shutil.copy("./data/stations.list","./output/wx_station_list.txt")
+
 
     
     print_m("Complete !\n")
