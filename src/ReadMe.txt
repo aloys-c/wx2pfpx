@@ -2,7 +2,6 @@
 
 ## A simple weather data provider script for the discontinuated Professional Flight Plan X software.
 
-
 ### How to install :
 
 The folder can be placed anywhere on the computer, a shortcut to the "wx2pfpx.exe" file can be created and put on the Desktop for quick access. The output files are generated and stored in the folder named "output". This folder has to be selected in the PFPX as the "Active Sky" folder (settings on lower bar of screen), the data displayed in PFPX is then automatically refreshed each time the data is updated.
@@ -14,12 +13,12 @@ PLEASE NOTE : the program freezes sometimes during processing, this is not an is
 
 Open the script by double clicking on wx2pfpx.exe or the created shortcut on the Desktop.
 
-The script keeps track of last downloaded data and they can be directly browsed, if available, by using the cursor on the right to get through the different forecast times and display them in PFPX.
+The script keeps track of last downloaded data and they can be directly browsed, if available, by using the cursor on the  to left through the different forecast times and display them in PFPX.
 
 To download new data, you have the following options : 
 - select a starting time (up to 24 hours in the future). 
 - The number of forecasts you want to fetch. 
-- Using a stations network or a grid to import the data. 
+- Using either a stations network or a grid to import the data. 
 
 Clicking on the download button will generate a new dataset that will be saved on the Hard Drive and replace the previous one.
 
@@ -32,9 +31,9 @@ Keep in mind that the weather data source is a free, but limited service. It is 
 
 The script fetches raw weather data, METAR and TAF data from the NOAA, US national weather service, which is then compiled to a single file that can be imported in PFPX. The data source is updated 4 times a day, and provides forecasts for every 3 following hours up to 16 days. When available, METAR and TAF data is also provided for more than 5000 airports. 
 
-The station network consists of about 15000 reference airports from PFPX, wind/temperature data is provided for each of them. Moreover about 500 additional stations are used in remote areas. (See stations image file) Imported data is then extrapolated in a grid by PFPX. This allows to access the data quickly and in an optimized way, covering mostly the whole map and fits well for flying on continents with a high airport density.  
+The stations network consists of about 15000 reference airports from PFPX, wind/temperature data is provided for each of them. Moreover, about 500 additional stations are used in remote areas (See stations image file). Imported data is then extrapolated in a grid by PFPX. This allows to access the data quickly and in an optimized way, covering mostly the whole map and fits well for flying on continents with a high airport density.  
 
-For more precision, it is also possible to generate an output file containing the whole NOAA grid (resolution 1°/~111km, 65160 points) (See grid image file) dataset. this takes more time to process, but will cover precisely and homogeneously the whole map. That method could fit better for long haul flights over remote areas.
+For more precision, it is also possible to generate an output file containing the whole NOAA grid (resolution 1°/~111km, 65160 points, see grid image file) dataset. this takes more time to process, but will cover precisely and homogeneously the whole map. That method could fit better for long haul flights over remote areas.
 
 
 Main differences with official server :
