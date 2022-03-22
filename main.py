@@ -249,11 +249,7 @@ def data_process():
     if(not dates):
         return
 
-        
-    try:
-       requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=21&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid),timeout = 2) #just a log to know if my app has some success ! :)
-    except:
-       pass
+
 
 
     
@@ -359,10 +355,7 @@ def data_process():
     else:
         shutil.copy("./data/stations.list","./output/wx_station_list.txt")
 
-    try:
-       requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=21&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid),timeout = 10) #just a log to know if my app has some success ! :)
-    except:
-       pass
+  
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
