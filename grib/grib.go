@@ -16,17 +16,30 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"strings"
 )
 
 import "C"
 
 //export parse_grib
-func parse_grib(n int) *C.char {
+func parse_grib(n int, typ int) *C.char {
 	//fmt.Println("Hello, World")
 
 	var airports []airport
-	arpts, err := ioutil.ReadFile("./data/met_taf")
+	var file string
+
+	if typ == 2 {
+		file = "./data/met_taf"
+	} else if typ == 1 {
+		file = "./data/grid"
+	} else {
+		file = "./data/stations"
+	}
+
+	arpts, err := ioutil.ReadFile(file)
+	if err != nil {
+		log.Fatalf("Could not open test-file %v", err)
+	}
+
 	json.Unmarshal([]byte(arpts), &airports)
 
 	gribfile, err := os.Open("./data/data." + strconv.Itoa(n))
@@ -36,21 +49,17 @@ func parse_grib(n int) *C.char {
 		log.Fatalf("Could not open test-file %v", err)
 	}
 
-	for i := 0; i < 48; i += 3 {
+	for i := 0; i < 27; i += 3 {
 		temp := messages[i].Data()
 		u := messages[i+1].Data()
 		v := messages[i+2].Data()
 		k := 0
 		alt := messages[i].Section4.ProductDefinitionTemplate.FirstSurface.Value
 		for _, airport := range airports {
-			lat, err := strconv.ParseFloat(strings.TrimSpace(airport.Lat), 64) //180
-			if err != nil {
-				log.Fatalln("1", err)
-			}
-			lon, err := strconv.ParseFloat(strings.TrimSpace(airport.Lon), 64) //360
-			if err != nil {
-				log.Fatalln("2", err)
-			}
+
+			lon := airport.Lon
+			lat := airport.Lat
+
 			index := get_i(lat, lon)
 
 			x, y, speed, head := get_wind(u[index], v[index])
@@ -76,12 +85,21 @@ type data struct {
 }
 
 type airport struct {
-	Icao  string `json:"ICAO"`
-	Lat   string `json:"lat"`
-	Lon   string `json:"lon"`
-	Metar string `json:"METAR"`
-	Taf   string `json:"TAF"`
-	Data  []data `json:"data"`
+	Icao  string  `json:"code"`
+	Lat   float64 `json:"lat"`
+	Lon   float64 `json:"lon"`
+	Alt   float64 `json:"alt"`
+	Metar string  `json:"METAR"`
+	Taf   string  `json:"TAF"`
+	Data  []data  `json:"data"`
+}
+
+type station struct {
+	Code string  `json:"ICAO"`
+	Lat  float64 `json:"lat"`
+	Lon  float64 `json:"lon"`
+	Alt  float64 `json:"alt"`
+	Data []data  `json:"data"`
 }
 
 var Nj = 181.0
@@ -103,5 +121,5 @@ func get_wind(u float64, v float64) (float64, float64, float64, int) {
 }
 
 func main() {
-	parse_grib(0)
+	parse_grib(0, 1)
 }
