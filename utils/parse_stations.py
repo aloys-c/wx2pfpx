@@ -62,7 +62,7 @@ if(1):
     
     handle_dict = {
     "Airports" : 0,
-    "Extra stations" : 0,
+    "Grid (Small squares)" : 0,
     }
    
 
@@ -85,9 +85,9 @@ if(1):
             y = round(float(stations[i]['lat']))
             x = round(float(stations[i]['lon']))
             m.scatter(x,y,color="blue",s=1,label = 
-                "Extra stations" if handle_dict['Extra stations'] == 0
+                "Grid (Small squares)" if handle_dict["Grid (Small squares)"] == 0
                 else "_no-legend_")
-            handle_dict['Extra stations'] += 1
+            handle_dict["Grid (Small squares)"] += 1
    
     plt.legend(loc="lower center", ncol=2,bbox_to_anchor =(0.5, -0.08))
     plt.show()
