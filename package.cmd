@@ -20,8 +20,8 @@ copy "src\Stations.png" "wx2pfpx_pack\"
 copy "src\Grid.png" "wx2pfpx_pack\"
 copy "src\wx2pfpx_vs_NOAA\*" "wx2pfpx_pack\wx2pfpx_vs_NOAA"
 
-del "wx2pfpx2.1.zip"
-powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.1.zip'
+del "wx2pfpx2.2.zip"
+powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.2.zip'
 
 
 rmdir /s /q "build"

@@ -17,8 +17,8 @@ The script keeps track of last downloaded data and they can be directly browsed,
 
 To download new data, you have the following options : 
 - select a starting time (up to 24 hours in the future). 
-- The number of forecasts you want to fetch. 
-- Using either a stations network or a grid to import the data. 
+- The number of forecasts you want to fetch (steps of 3 hours from the given starting time)
+- Using either a stations network or a grid to import the data located outside of airports.
 
 Clicking on the download button will generate a new dataset that will be saved on the Hard Drive and replace the previous one.
 
@@ -33,7 +33,7 @@ The script fetches raw weather data, METAR and TAF data from the NOAA, US nation
 
 The stations network consists of about 15000 reference airports from PFPX, wind/temperature data is provided for each of them. Moreover, about 500 additional stations are used in remote areas (See stations image file). Imported data is then extrapolated in a grid by PFPX. This allows to access the data quickly and in an optimized way, covering mostly the whole map and fits well for flying on continents with a high airport density.  
 
-For more precision, it is also possible to generate an output file containing the whole NOAA grid (resolution 1°/~111km, 65160 points, see grid image file) dataset. this takes more time to process, but will cover precisely and homogeneously the whole map. That method could fit better for long haul flights over remote areas.
+For more precision, it is also possible to generate an output file containing the whole NOAA grid (resolution 1°/~111km, 65160 points, see grid image file) dataset. this takes more time to process, but will cover precisely and homogeneously the whole map, in addition to the airports data. That method could fit better for long haul flights over remote areas.
 
 
 Main differences with official server :
