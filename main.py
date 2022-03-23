@@ -249,7 +249,6 @@ def data_process():
     if(not dates):
         return
 
-
     
     #Get the wind data
     if 1:
