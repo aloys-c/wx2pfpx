@@ -68,7 +68,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern __declspec(dllexport) char* parse_grib(GoInt n, GoInt typ);
+extern __declspec(dllexport) char* parse_grib(GoInt n, GoInt typ, GoInt interp);
 
 #ifdef __cplusplus
 }

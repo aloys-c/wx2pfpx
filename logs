@@ -1,0 +1,5 @@
+
+1.0,1-2-3:was wrong, data shifted.
+2.0,4-5: grid file was wrong, added grid mode.
+2.1,21 : was working nice.
+2.2,22 : Added interpolation.

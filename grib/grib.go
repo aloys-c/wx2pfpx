@@ -10,6 +10,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"griblib"
 	"io/ioutil"
 	"log"
@@ -21,7 +22,7 @@ import (
 import "C"
 
 //export parse_grib
-func parse_grib(n int, typ int) *C.char {
+func parse_grib(n int, typ int, interp int) *C.char {
 	//fmt.Println("Hello, World")
 
 	var airports []airport
@@ -60,10 +61,28 @@ func parse_grib(n int, typ int) *C.char {
 			lon := airport.Lon
 			lat := airport.Lat
 
-			index := get_i(lat, lon)
+			if interp == 1 {
+				lon_l, lon_h, lat_l, lat_h := get_l_h(lon, lat)
+				dist := []float64{get_dist(lon, lat, lon_l, lat_h), get_dist(lon, lat, lon_h, lat_h), get_dist(lon, lat, lon_h, lat_l), get_dist(lon, lat, lon_l, lat_l)}
+				i_p := []int{get_i(lat_h, lon_l), get_i(lat_h, lon_h), get_i(lat_l, lon_h), get_i(lat_l, lon_l)}
 
-			x, y, speed, head := get_wind(u[index], v[index])
-			airports[k].Data = append(airport.Data, data{Pa2feet(float64(alt)), int(temp[index] - 273.15), x, y, speed, head})
+				u_p := []float64{u[i_p[0]], u[i_p[1]], u[i_p[2]], u[i_p[3]]}
+				v_p := []float64{v[i_p[0]], v[i_p[1]], v[i_p[2]], v[i_p[3]]}
+				T_p := []float64{temp[i_p[0]], temp[i_p[1]], temp[i_p[2]], temp[i_p[3]]}
+				w_p := get_weigths(dist)
+
+				sum_u := weighted_sum(u_p, w_p)
+				sum_v := weighted_sum(v_p, w_p)
+				sum_T := weighted_sum(T_p, w_p)
+
+				x, y, speed, head := get_wind(sum_u, sum_v)
+				airports[k].Data = append(airport.Data, data{Pa2feet(float64(alt)), int(sum_T - 273.15), x, y, speed, head})
+			} else {
+				index := get_i(lat, lon)
+				x, y, speed, head := get_wind(u[index], v[index])
+				airports[k].Data = append(airport.Data, data{Pa2feet(float64(alt)), int(temp[index] - 273.15), x, y, speed, head})
+
+			}
 			k += 1
 		}
 	}
@@ -71,7 +90,7 @@ func parse_grib(n int, typ int) *C.char {
 	if err != nil {
 		log.Fatalf("Error occured during marshaling. Error: %s", err.Error())
 	}
-	//fmt.Print(string(json[1:4000]))
+	fmt.Print(string(json[1:4000]))
 	return C.CString(string(json))
 }
 
@@ -105,6 +124,33 @@ type station struct {
 var Nj = 181.0
 var Ni = 360.0
 
+func weighted_sum(v []float64, w [4]float64) float64 {
+	return v[0]*w[0] + v[1]*w[1] + v[2]*w[2] + v[3]*w[3]
+}
+
+func get_weigths(dist []float64) [4]float64 {
+	var w [4]float64
+	for i := 0; i < 4; i++ {
+		w[i] = (1 / dist[i]) / (1/dist[0] + 1/dist[1] + 1/dist[2] + 1/dist[3])
+	}
+	return w
+
+}
+
+func get_dist(x1 float64, y1 float64, x2 float64, y2 float64) float64 {
+	dx := math.Abs(x2 - x1)
+	dy := math.Abs(y2 - y1)
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+func get_l_h(x float64, y float64) (float64, float64, float64, float64) {
+	x_l := math.Floor(x)
+	x_h := math.Ceil(x)
+	y_l := math.Floor(y)
+	y_h := math.Ceil(y)
+	return x_l, x_h, y_l, y_h
+}
+
 func Pa2feet(pa float64) int {
 	return int((1 - math.Pow(pa/(100.0*1013.25), 0.190284)) * 145366.45)
 }
@@ -121,5 +167,5 @@ func get_wind(u float64, v float64) (float64, float64, float64, int) {
 }
 
 func main() {
-	parse_grib(0, 1)
+	parse_grib(1, 2, 1)
 }

@@ -134,7 +134,7 @@ def get_grib(dates,n):
     else:
         moment = "f00"+str(dates['offset'])
     
-    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_350_mb=on&lev_450_mb=on&lev_600_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
+    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
    
     grbs_file = requests.get(data).content
     open('./data/data.'+str(n), 'wb').write(grbs_file)
@@ -249,7 +249,11 @@ def data_process():
     if(not dates):
         return
 
-
+        
+    #try:
+       #requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=22&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid),timeout = 2) #just a log to know if my app has some success ! :)
+    #except:
+       #pass
 
 
     
@@ -325,13 +329,13 @@ def data_process():
         grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
         parse_grib = grib.parse_grib
         parse_grib.restype = ctypes.c_void_p
-        parse_grib.argtypes = [ctypes.c_int,ctypes.c_int]
-        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(grid))
-        out = ctypes.string_at(ptr)
-        airports_out = json.loads(out) 
-        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(2))
+        parse_grib.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int]
+        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(grid),ctypes.c_int(0))
         out = ctypes.string_at(ptr)
         stations_out = json.loads(out) 
+        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(2),ctypes.c_int(1))
+        out = ctypes.string_at(ptr)
+        airports_out = json.loads(out) 
         data = airports_out
         data.extend(stations_out)
         #with open("./test","w") as met_taf_file:
@@ -341,13 +345,14 @@ def data_process():
         if(dates[2]['n_forecast']):
             for i in range(0,dates[2]['n_forecast']):
                 #uses external module
-                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(grid))
-                out = ctypes.string_at(ptr)
-                airports_out = json.loads(out) 
-                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(2))
+                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(grid),ctypes.c_int(0))
                 out = ctypes.string_at(ptr)
                 stations_out = json.loads(out) 
-                data = airports_out.extend(stations_out)
+                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(2),ctypes.c_int(1))
+                out = ctypes.string_at(ptr)
+                airports_out = json.loads(out) 
+                data = airports_out
+                airports_out.extend(stations_out)
                 compile_output(data,n_layer,i+1)
 
     if(grid):
@@ -355,7 +360,10 @@ def data_process():
     else:
         shutil.copy("./data/stations.list","./output/wx_station_list.txt")
 
-  
+    #try:
+       #requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=22&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid),timeout = 10) #just a log to know if my app has some success ! :)
+    #except:
+       #pass
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
