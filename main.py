@@ -2,7 +2,7 @@
 from math import atan2
 import requests
 import xml.etree.ElementTree as ET
-#import pygrib #Doesn't work well under windows, can be install on anaconda though for testing.
+import configparser
 import json
 import ctypes
 import math
@@ -10,6 +10,7 @@ import pytz
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
+from tkinter import ttk
 from tkinter import messagebox,StringVar,Radiobutton
 from datetime import datetime,timezone, timedelta
 
@@ -55,15 +56,23 @@ def line_m():
 def print_r(n):
     root.text.delete("end-"+str(n+1)+"c","end")
 
+def open_list(name):
+    data =[]
+    with open(name) as list:
+        lines = list.readlines()
+        for line in lines:
+            l = line.split(",")
+            data.extend([{"code":l[0],"lat":float(l[1]),"lon":float(l[2]),"alt":int(l[3])}])
 
-def get_d(tab,lat,lon):
-    return tab[int(180-round(90+lat,0))][int(round(360+lon,0))%360]
+    return data
 
-def get_wind(u,v,lat,lon):
-    x = get_d(u,lat,lon)
-    y = get_d(v,lat,lon)
-    return {"u":x,"v":y,"speed":((pow(x,2)+pow(y,2))**0.5)*1.943,"head":(math.degrees(atan2(x,y))+360)%360}
-
+def read_config(section,name):
+    config = configparser.ConfigParser()
+    config.read('settings.cfg')
+    try:
+        return config['Export']['generate_export_files']
+    except:
+        return "ERROR"
 #------------------------------------ High level functions --------------------------------
 
 def get_metars():
@@ -124,75 +133,64 @@ def compile_metars_tafs(airports,metars,tafs):
     return data
 
 
-def get_grib(dates,n):
+def get_grib(dates,n,res):
     print_m("Trying: "+str(dates['date_f'])[0:16]+" UTC release at "+str(dates['offset'])+"th hour forecast...")
-    sleep(5)
+    
     date = dates['date_f'].strftime("%Y")+dates['date_f'].strftime("%m")+dates['date_f'].strftime("%d")
     cycle = dates['date_f'].strftime("%H")
     if(dates['offset']>9):
         moment = "f0"+str(dates['offset'])
     else:
         moment = "f00"+str(dates['offset'])
-    
-    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?file=gfs.t"+cycle+"z.pgrb2.1p00."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
-   
+
+    if(res==50):
+        type ="pgrb2full."
+        res_file="0p50"
+    elif(res==25):
+        type="pgrb2."
+        res_file="0p25"
+    else:
+        res_file ="1p00"
+        type="pgrb2."
+
+    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_"+res_file+".pl?file=gfs.t"+cycle+"z."+type+res_file+"."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
+
     grbs_file = requests.get(data).content
-    open('./data/data.'+str(n), 'wb').write(grbs_file)
+    open('./data/data'+str(res)+'.'+str(n), 'wb').write(grbs_file)
     if(sys.getsizeof(grbs_file)<100000):
         print_m("failed.\n")
+        sleep(5)
         return 0
     else :
         print_m("success.\n")
+        sleep(5)
         return 1
 
-#Replaced by an external function because of pygrib incompatibility
-def extract_grib(grbs,data):
-    print_m("Extracting wind data...\n")
-    print_m("0%\n")
-    for arpts in data :
-        arpts['data'] = []
-    for i in range(1,48,3):
-        temp = grbs[i].values
-        u = grbs[i+1].values
-        v = grbs[i+2].values
-        alt = grbs[i].level
-        line_m() 
-        print_m(str(round(i/48*100))+"%\n")
-        
-        for arpts in data :
-            lat = float(arpts['lat']) #180
-            lon = float(arpts ['lon'])#360
-            arpts['data'].extend([{"altitude":mb2feet(alt),"T":get_d(temp,lat,lon)-273.15}|get_wind(u,v,lat,lon)]) 
-    line_m()
-    print_m("100%\n")
-
-    return data
     
-
 def compile_output(data,n_layer,n):
     print_m("Compiling forecast "+str(n+1)+" to output format...\n")
     with open("./output/out."+str(n),"w") as out_file:
         line = []
-        for arpts in data:
-            line = arpts["code"]
+        for station in data:
+            line = station["code"]
            
-            if arpts['METAR']:
-                line = line+ "::"+arpts["METAR"]+"::"
+            if station['METAR']:
+                line = line+ "::"+station["METAR"]+"::"
             else :
                 line = line+ "::*::"
-            if(arpts['TAF']):
-                line = line+arpts["TAF"]+"::"
+            if(station['TAF']):
+                line = line+station["TAF"]+"::"
             else:
                 line =line+ "*::"
             
-            for i in range(n_layer-1,-1,-1):
-                #alt = str(round(arpts['data'][i]['altitude']))
-                head = str((round(arpts['data'][i]['head'])+180)%360)
-                speed = str(round(arpts['data'][i]['speed']))
-                temp = str(round(arpts['data'][i]['T']))
-                line = line+head+","+speed+","+temp+"/"
+            if "data" in station:
+                for i in range(n_layer-1,-1,-1):
+                    #alt = str(round(station['data'][i]['altitude']))
+                    head = str((round(station['data'][i]['head'])+180)%360)
+                    speed = str(round(station['data'][i]['speed']))
+                    temp = str(round(station['data'][i]['T']))
+                    line = line+head+","+speed+","+temp+"/"
             out_file.write(line+"\n")
-    
     
 
 def get_data_time():
@@ -236,35 +234,80 @@ def get_data_time():
     
     return([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
 
+grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
+parse_grib = grib.parse_grib
+parse_grib.restype = ctypes.c_void_p
+#parse_grib.argtypes = [ctypes.c_char_p,ctypes.c_int,ctypes.c_int,ctypes.c_int]
+
+def extract_grib(dic,num,int,res):
+
+    class go_string(ctypes.Structure):
+        _fields_ = [
+        ("p", ctypes.c_char_p),
+        ("n", ctypes.c_int)]
+    str= json.dumps(dic)
+    str=bytes(str,'UTF-8')
+    dic_go = go_string(ctypes.c_char_p(str), len(str))
+    ptr = parse_grib(dic_go,ctypes.c_int(num),ctypes.c_int(int),ctypes.c_int(res))
+    out = ctypes.string_at(ptr)
+    return json.loads(out)
+
+def create_grid(res):
+    with open("./output/wx_station_list.txt","w") as file:
+        n =0
+        line_out = ""
+        json_dic = []
+        for i in range(-9000,9000,res):
+            for j in range(-18000,18000,res):
+                n+=1
+                fill = ""
+                if(n<100):
+                    fill ="0"
+                if(n<10):
+                    fill = "00"
+                line_out +="$"+fill+str(n)+","+str(i/100)+"00,"+str(j/100)+"00,1000\n"
+                json_dic.extend([{"code":"$"+fill+str(n),"lat":i/100,"lon":j/100}])
+        file.write(line_out)
+        return json_dic
 
 #------------------------ Main function (Download) ---------------------------------
 
 def data_process():
    
-   #Number of layers in the grib file
+   #Number of altitude layers in the grib file
     n_layer = 9
+
+    
+
+
     grid = int(var_radio.get())
+    add_airports = air_check.get()
+    try:
+        grid_res= int(float(root.reso_box.get())*100)
+    except:
+        grid_res = 100
+    print(grid_res)
+    
+    
 
     dates = get_data_time()
     if(not dates):
         return
 
-    
     #Get the wind data
     if 1:
         #Get first datasets
         data_log = open("./data/data","w")
         n = 0
-        if(not get_grib(dates[n],0)):
+        if(not get_grib(dates[n],0,grid_res)):
             n = 1
             print_m("Data not available yet.\n")
-            if(not get_grib(dates[n],0)):
+            if(not get_grib(dates[n],0),grid_res):
                 print_m("Error : Couldn't retrieve data...\n")
                 return
         data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
 
-
-    #get forecast datasets
+        #get additional datasets
         if(dates[2]['n_forecast']):
             print_m("Downloading extra forecast data:\n")
             offset = dates[n]['offset']
@@ -272,7 +315,7 @@ def data_process():
                 offset = offset+3
                 sleep(5)
                 dates[n]['offset'] = offset
-                if(not get_grib(dates[n],i+1)):
+                if(not get_grib(dates[n],i+1,grid_res)):
                     print_m("Error : Couldn't retrieve data...\n")
                     return
                 else:
@@ -283,8 +326,7 @@ def data_process():
 
     #Get the metars
     if 1:
-        with open("./data/airports") as arpts_file:
-            airports = json.load(arpts_file)
+        airports = open_list("./data/airports")
 
         metars = get_metars()
         tafs = get_tafs()
@@ -292,67 +334,59 @@ def data_process():
         met_tafs = compile_metars_tafs(airports,metars,tafs)
         with open("./data/met_taf","w") as met_taf_file:
             json.dump(met_tafs,met_taf_file)
-  
-    try:
-        shutil.rmtree("./output/*")
-    except:
-        pass
-   
- 
-    if 0:
-    #uses internal function
-        #grbs = pygrib.open("./data/data.0")
+
+    else:
         with open("./data/met_taf","r") as met_taf_file:
             met_tafs = json.load(met_taf_file)
+  
 
-        data = extract_grib(grbs,met_tafs)
-        compile_output(data,n_layer,0)
-
-        if(dates[2]['n_forecast']):
-            for i in range(0,dates[2]['n_forecast']):
-                #uses internal function
-
-                #with pygrib.open("./data/data."+str(i+1)) as grbs:
-                    #data = extract_grib(grbs,met_tafs)
-                compile_output(data,n_layer,i+1)
-    
-    else:
-        #Uses external module to parse grib to json
-        print_m("Extracting wind data...\n")
-        grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
-        parse_grib = grib.parse_grib
-        parse_grib.restype = ctypes.c_void_p
-        parse_grib.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int]
-        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(grid),ctypes.c_int(0))
-        out = ctypes.string_at(ptr)
-        stations_out = json.loads(out) 
-        ptr = parse_grib(ctypes.c_int(0),ctypes.c_int(2),ctypes.c_int(1))
-        out = ctypes.string_at(ptr)
-        airports_out = json.loads(out) 
-        data = airports_out
-        data.extend(stations_out)
-        #with open("./test","w") as met_taf_file:
-                #json.dump(data,met_taf_file)
-        compile_output(data,n_layer,0)
-    
-        if(dates[2]['n_forecast']):
-            for i in range(0,dates[2]['n_forecast']):
-                #uses external module
-                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(grid),ctypes.c_int(0))
-                out = ctypes.string_at(ptr)
-                stations_out = json.loads(out) 
-                ptr = parse_grib(ctypes.c_int(i+1),ctypes.c_int(2),ctypes.c_int(1))
-                out = ctypes.string_at(ptr)
-                airports_out = json.loads(out) 
-                data = airports_out
-                airports_out.extend(stations_out)
-                compile_output(data,n_layer,i+1)
+    #Uses external module to parse grib to json
+    print_m("Extracting wind data...\n")
 
     if(grid):
-        shutil.copy("./data/grid.list","./output/wx_station_list.txt")
+        network = create_grid(grid_res)
     else:
-        shutil.copy("./data/stations.list","./output/wx_station_list.txt")
+        network = open_list('./data/stations')
+        shutil.copy("./data/stations","./output/wx_station_list.txt")
+        
+    data = extract_grib(network,0,0,grid_res)
+    
+    if((not grid) or add_airports):
+        airports_out = extract_grib(met_tafs,0,1,grid_res)
+        data.extend(airports_out)
+    else:
+        data.extend(met_tafs)
 
+    compile_output(data,n_layer,0) 
+
+    if 0:    
+        with open("./output/export"+str(grid_res)+".0","w") as export_data:
+            json.dump(data,export_data)
+    
+    
+    if(dates[2]['n_forecast']):
+        for i in range(0,dates[2]['n_forecast']):
+            #uses external module
+            print_m("Extracting wind data...\n")
+            data = extract_grib(network,i+1,0,grid_res)
+            if((not grid) or add_airports):
+                airports_out = extract_grib(met_tafs,i+1,1,grid_res)
+                data.extend(airports_out)
+            else:
+                data.extend(met_tafs)
+            
+            compile_output(data,n_layer,i+1)
+            
+            if 0:
+                with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_data:
+                    json.dump(data,export_data)
+            
+
+    with open("./data/airports","r") as fp: 
+        data = fp.read()
+        data = "\n"+data
+        with open ("./output/wx_station_list.txt", 'a') as out: 
+            out.write(data)
     
     print_m("Complete !\n")
     shutil.copy("./data/data","./output/out")
@@ -426,15 +460,16 @@ root.date_field.grid( column = 0,row=1,padx = (10,5))
 root.slider = None
 
 root.date_label = tk.Label(root.right,text = "Start date (optionnal) :",width =20)
-root.date_label.grid(column =0,row=1,pady=(0,10),padx = (10,5))
+root.date_label.grid(column =0,row=1,pady=(0,0),padx = (10,5))
 root.start_field = tk.Entry(root.right,width=8)
-root.start_field.grid( column = 1,row=1,sticky=tk.W,pady=(0,10),padx = (5,5))
+root.start_field.grid( column = 1,row=1,sticky=tk.W,pady=(0,0),padx = (5,5))
 root.for_label = tk.Label(root.right,text = "Number of forecasts (1-4) :")
-root.for_label.grid(column =0,row=0,pady=(16,10),padx = (10,5))
+root.for_label.grid(column =0,row=0,pady=(2,5),padx = (10,5))
 root.for_field = tk.Entry(root.right, text = "0",width=8)
 root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(16,10),padx = (5,5))
 
 var_radio = StringVar()
+air_check = tk.IntVar()
 var_radio.set(2)
  
 root.radio_1 = Radiobutton(root.right, text = "Stations", variable = var_radio, value = 0)
@@ -442,12 +477,17 @@ root.radio_1.grid(column = 2,row = 0, padx=(12,0),pady=(6,0))
  
 root.radio_2 = Radiobutton(root.right, text = "Grid", variable = var_radio, value = 1)
 root.radio_2.grid(column=3,columnspan=2,row = 0,pady=(6,0))
+root.check = tk.Checkbutton(root.right,text='Airports',variable=air_check, onvalue=1, offvalue=0)
+root.check.grid(column=2,row = 1)
 
+root.reso_box = ttk.Combobox(root.right, values = ["1","0.5","0.25"])
+root.reso_box.set("Data resolution")
+root.reso_box.grid(column=0,row=2)        
 
 root.button = tk.Button(root.right,text = "Download data", command = data_process)
-root.button.grid(column = 2,row = 1,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
+root.button.grid(column = 2,row = 2,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
 root.help = tk.Button(root.right,text = "?", command = read_me)
-root.help.grid(column = 4,row = 1,sticky=tk.W,pady=(0,11))
+root.help.grid(column = 2,row = 2,sticky=tk.W,pady=(0,11))
 
 root.text = tk.Text(width = 70,height = 10)
 root.text.grid(row =2,column =0,columnspan=2)

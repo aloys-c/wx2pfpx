@@ -10,9 +10,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"griblib"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -22,28 +20,15 @@ import (
 import "C"
 
 //export parse_grib
-func parse_grib(n int, typ int, interp int) *C.char {
+func parse_grib(dic string, n int, interp int, res_i int) *C.char {
 	//fmt.Println("Hello, World")
+	res := float64(res_i) / 100
+	print(res)
+	var stations []station
 
-	var airports []airport
-	var file string
+	json.Unmarshal([]byte(dic), &stations)
 
-	if typ == 2 {
-		file = "./data/met_taf"
-	} else if typ == 1 {
-		file = "./data/grid"
-	} else {
-		file = "./data/stations"
-	}
-
-	arpts, err := ioutil.ReadFile(file)
-	if err != nil {
-		log.Fatalf("Could not open test-file %v", err)
-	}
-
-	json.Unmarshal([]byte(arpts), &airports)
-
-	gribfile, err := os.Open("./data/data." + strconv.Itoa(n))
+	gribfile, err := os.Open("./data/data" + strconv.Itoa(int(res*100.0)) + "." + strconv.Itoa(n))
 	messages, err := griblib.ReadMessages(gribfile)
 
 	if err != nil {
@@ -56,15 +41,15 @@ func parse_grib(n int, typ int, interp int) *C.char {
 		v := messages[i+2].Data()
 		k := 0
 		alt := messages[i].Section4.ProductDefinitionTemplate.FirstSurface.Value
-		for _, airport := range airports {
+		for _, station := range stations {
 
-			lon := airport.Lon
-			lat := airport.Lat
+			lon := station.Lon
+			lat := station.Lat
 
 			if interp == 1 {
-				lon_l, lon_h, lat_l, lat_h := get_l_h(lon, lat)
+				lon_l, lon_h, lat_l, lat_h := get_l_h(lon, lat, res)
 				dist := []float64{get_dist(lon, lat, lon_l, lat_h), get_dist(lon, lat, lon_h, lat_h), get_dist(lon, lat, lon_h, lat_l), get_dist(lon, lat, lon_l, lat_l)}
-				i_p := []int{get_i(lat_h, lon_l), get_i(lat_h, lon_h), get_i(lat_l, lon_h), get_i(lat_l, lon_l)}
+				i_p := []int{get_i(lat_h, lon_l, res), get_i(lat_h, lon_h, res), get_i(lat_l, lon_h, res), get_i(lat_l, lon_l, res)}
 
 				u_p := []float64{u[i_p[0]], u[i_p[1]], u[i_p[2]], u[i_p[3]]}
 				v_p := []float64{v[i_p[0]], v[i_p[1]], v[i_p[2]], v[i_p[3]]}
@@ -76,21 +61,20 @@ func parse_grib(n int, typ int, interp int) *C.char {
 				sum_T := weighted_sum(T_p, w_p)
 
 				x, y, speed, head := get_wind(sum_u, sum_v)
-				airports[k].Data = append(airport.Data, data{Pa2feet(float64(alt)), int(sum_T - 273.15), x, y, speed, head})
+				stations[k].Data = append(station.Data, data{Pa2feet(float64(alt)), int(sum_T - 273.15), x, y, speed, head})
 			} else {
-				index := get_i(lat, lon)
+				index := get_i(lat, lon, res)
 				x, y, speed, head := get_wind(u[index], v[index])
-				airports[k].Data = append(airport.Data, data{Pa2feet(float64(alt)), int(temp[index] - 273.15), x, y, speed, head})
-
+				stations[k].Data = append(station.Data, data{Pa2feet(float64(alt)), int(temp[index] - 273.15), x, y, speed, head})
 			}
 			k += 1
 		}
 	}
-	json, err := json.Marshal(airports)
+	json, err := json.Marshal(stations)
 	if err != nil {
 		log.Fatalf("Error occured during marshaling. Error: %s", err.Error())
 	}
-	fmt.Print(string(json[1:4000]))
+	//fmt.Print(string(json[1:400]))
 	return C.CString(string(json))
 }
 
@@ -103,7 +87,7 @@ type data struct {
 	Head     int     `json:"head"`
 }
 
-type airport struct {
+type station struct {
 	Icao  string  `json:"code"`
 	Lat   float64 `json:"lat"`
 	Lon   float64 `json:"lon"`
@@ -112,17 +96,6 @@ type airport struct {
 	Taf   string  `json:"TAF"`
 	Data  []data  `json:"data"`
 }
-
-type station struct {
-	Code string  `json:"ICAO"`
-	Lat  float64 `json:"lat"`
-	Lon  float64 `json:"lon"`
-	Alt  float64 `json:"alt"`
-	Data []data  `json:"data"`
-}
-
-var Nj = 181.0
-var Ni = 360.0
 
 func weighted_sum(v []float64, w [4]float64) float64 {
 	return v[0]*w[0] + v[1]*w[1] + v[2]*w[2] + v[3]*w[3]
@@ -134,7 +107,6 @@ func get_weigths(dist []float64) [4]float64 {
 		w[i] = (1 / dist[i]) / (1/dist[0] + 1/dist[1] + 1/dist[2] + 1/dist[3])
 	}
 	return w
-
 }
 
 func get_dist(x1 float64, y1 float64, x2 float64, y2 float64) float64 {
@@ -143,20 +115,28 @@ func get_dist(x1 float64, y1 float64, x2 float64, y2 float64) float64 {
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
-func get_l_h(x float64, y float64) (float64, float64, float64, float64) {
-	x_l := math.Floor(x)
-	x_h := math.Ceil(x)
-	y_l := math.Floor(y)
-	y_h := math.Ceil(y)
+func get_l_h(x float64, y float64, res float64) (float64, float64, float64, float64) {
+	x_l := math.Floor(x/res) * res
+	x_h := math.Ceil(x/res) * res
+	y_l := math.Floor(y/res) * res
+	y_h := math.Ceil(y/res) * res
 	return x_l, x_h, y_l, y_h
+}
+
+func round_p(x float64, res float64) float64 {
+	return math.Round(x/res) * res
 }
 
 func Pa2feet(pa float64) int {
 	return int((1 - math.Pow(pa/(100.0*1013.25), 0.190284)) * 145366.45)
 }
 
-func get_i(lat float64, lon float64) int {
-	i := int((180-math.Round(lat+90))*Ni + math.Mod(math.Round(lon+360), 360)) //Ni or Nj
+func get_i(lat float64, lon float64, res float64) int {
+
+	Ni := 360 / res
+	//Nj := 180/res+1
+
+	i := int((180-round_p(lat+90, res))/res*Ni + math.Mod(round_p(lon+360, res), 360)*(1/(res))) //Ni or Nj
 	return i
 }
 
@@ -167,5 +147,14 @@ func get_wind(u float64, v float64) (float64, float64, float64, int) {
 }
 
 func main() {
-	parse_grib(1, 2, 1)
+	//parse_grib(0, 2, 1, 25)
+
+	print("/")
+	print(get_i(-90, -0.25, 0.25))
+	print("/")
+	print(get_i(60, 18.56, 100))
+
+	print("/")
+	print(get_i(60, 18.87, 100))
+
 }

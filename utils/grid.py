@@ -5,20 +5,25 @@ import matplotlib.pyplot as plt
 
 
 with open("grid_list","w") as grid_file:
-    n =1000
+    n =1
     line_out = ""
     json_item = []
-    for i in range(-90,90,1):
-        for j in range(-180,180,1):
+    for i in range(-9000,9000,100):
+        for j in range(-18000,18000,100):
             n+=1
-            line_out +="$"+str(n)+","+str(i)+","+str(j)+",1000\n"
-            json_item.extend([{"code":"$"+str(n),"lat":i,"lon":j}])
+            fill = ""
+            if(n<100):
+                fill ="0"
+            if(n<10):
+                fill = "00"
+            line_out +="$"+fill+str(n)+","+str(i/100)+"00,"+str(j/100)+"00,1000\n"
+            json_item.extend([{"code":"$"+fill+str(n),"lat":i/100,"lon":j/100}])
 
-    with open("grid","w") as json_file:
-        json.dump(json_item,json_file)
+    #with open("grid","w") as json_file:
+        #json.dump(json_item,json_file)
     grid_file.write(line_out)
 
-if(1):
+if(0):
 
     with open("./data/airports") as arpts_file:
             airports = json.load(arpts_file)
