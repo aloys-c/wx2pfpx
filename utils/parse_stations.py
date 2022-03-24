@@ -48,7 +48,7 @@ if(0):
     out_file.write(line_out+"\n")
 
 
-if(1):
+if(0):
 
     with open("./data/airports") as arpts_file:
             airports = json.load(arpts_file)
