@@ -328,11 +328,6 @@ class DataProcess(Thread):
         
         dates = get_data_time()
 
-        try:
-            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 3) #just a log to know if my app has some success ! :)
-        except:
-            pass
-
         #Get the wind data
         if 1:
             #Get first datasets
@@ -432,10 +427,6 @@ class DataProcess(Thread):
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
 
-        try:
-            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 10) #just a log to know if my app has some success ! :)
-        except:
-            pass
 
         print_m("Complete !\n")
         shutil.copy("./data/data","./output/out")
