@@ -43,7 +43,7 @@ Main differences with official server :
 - The general quality/compatibility, please pay for the official subscription if you can afford it, it will give you what's best and allows to reward the team for their work.
 
 
-###Advanced settings :
+### Advanced settings :
 
 You can edit the file settings.cfg as a normal text file. It allows to set the resolutions of the grid used for data interpolation on stations, and also the grid imported when using full grid mode (see documentation folder for exemples of grid effect on precision). Increasing resolution can make processing and loading times much higher, 0.25° resolution is not available for full grid mode as data amount is too high for PFPX.
 
