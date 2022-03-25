@@ -1,23 +1,21 @@
 
-from math import atan2
 import requests
 import xml.etree.ElementTree as ET
 import configparser
 import json
 import ctypes
 import math
-import pytz
+from threading import Thread
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox,StringVar,Radiobutton
+from tkinter import messagebox,StringVar,Radiobutton,ttk
 from datetime import datetime,timezone, timedelta
 
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 
-
+active = 0
 
 if getattr( sys, 'frozen', False ) :
                 # runs in a pyinstaller bundle
@@ -26,6 +24,7 @@ else :
     path = "./"
 
 #------------------- low level functions --------------------------------
+
 
 def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
@@ -66,13 +65,23 @@ def open_list(name):
 
     return data
 
-def read_config(section,name):
+def read_config(section,name,type,range):
     config = configparser.ConfigParser()
-    config.read('settings.cfg')
     try:
-        return config['Export']['generate_export_files']
+        config.read('settings.cfg')
     except:
-        return "ERROR"
+        messagebox.showinfo('', 'Settings file corrupted, please check.')
+        return 0,1
+    try:
+        item = type(config[section][name])
+    except:
+        messagebox.showinfo('', 'Missing entry "'+name+"' in settings file.")
+        return 0,1
+    if(item in range):
+        return item,0
+    else:
+        messagebox.showinfo('', 'Value of entry "'+name+"' is incorrect in settings file, should be "+str(range)+".")
+        return 0, 1
 #------------------------------------ High level functions --------------------------------
 
 def get_metars():
@@ -107,8 +116,6 @@ def compile_metars_tafs(airports,metars,tafs):
     n = 0
     data = airports.copy()
     length = len(data)
-    print(len(metars))
-    print(len(tafs))
     print_m(" 0%\n")
     for arpts in data:
             n = n+1
@@ -156,14 +163,13 @@ def get_grib(dates,n,res):
     data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_"+res_file+".pl?file=gfs.t"+cycle+"z."+type+res_file+"."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
 
     grbs_file = requests.get(data).content
+    sleep(5)
     open('./data/data'+str(res)+'.'+str(n), 'wb').write(grbs_file)
     if(sys.getsizeof(grbs_file)<100000):
         print_m("failed.\n")
-        sleep(5)
         return 0
     else :
         print_m("success.\n")
-        sleep(5)
         return 1
 
     
@@ -193,46 +199,66 @@ def compile_output(data,n_layer,n):
             out_file.write(line+"\n")
     
 
-def get_data_time():
+def find_start_time():
     now = datetime.now(timezone.utc)
+    h = now.hour
+    now = now.replace(second=0, minute = 0, microsecond=0)
+    nearest_hour_data = hours = math.floor(h/6)*6
+    nearest_hour_forecast = nearest_hour_data + math.floor((now-now.replace(hour=nearest_hour_data)).seconds/(60*60*3))*3
+    nearest_hour_data_t = now.replace(hour=nearest_hour_data)
+    nearest_hour_forecast_t = nearest_hour_data_t+timedelta(hours=(nearest_hour_forecast-nearest_hour_data)%24)
+    print(nearest_hour_data_t)
+    print(nearest_hour_forecast_t)
+    return  now, nearest_hour_data_t, nearest_hour_forecast_t
+    
+
+
+def get_data_time():
+
+    #Getting user entry
+    now, nearest_h_f, nearest_h_d = find_start_time()
     print_m("Actual time : "+str(now)[0:19]+" UTC\n")
 
-    date = root.start_field.get()
-    if(date == "dd/hh"):
-        date = ""
     n_forecast = int(root.for_field.get())-1
-    now = now.replace(second=0, minute = 0, microsecond=0)
+    
+    entry = root.time_box.get()
+    print(root.keys)
+    if(entry == "--"):
+        hour_entry = nearest_h_d
+        entry_delta = 0
+    else:
+        hour_entry = int(entry[:entry.index(":")])
+        entry = entry[entry.index("+"):]
+        entry_delta = int(entry[:entry.index(")")])
+    
 
-    if(date):
-        date = date.split("/")
-        date = list(map(int,date))
-        date_d = datetime(now.year,now.month,date[0],date[1],0,0,0,pytz.UTC)
-    else :
-        date_d = datetime(now.year,now.month,now.day,now.hour,0,0,0,pytz.UTC)
-        date_d = date_d + timedelta(hours=1)
-        
-    datasets = ["00","06","12","18"]
+    #In case a time was selected and the time has passed before user confirmed 
+    n_new_files = 0
+    original_start = (hour_entry-entry_delta)%24
+    if(not (original_start == nearest_h_d)):
+        print("True")
+        time_passed= (nearest_h_d-original_start)%24
+        print("time passed"+str(time_passed))
+        entry_shift = entry_delta-time_passed
+        print("Entry shift"+str(entry_shift))
+        if(entry_shift>=0):
+            entry_delta = entry_shift
+        else:
+            entry_shift = abs(entry_shift)
+            n_new_files = math.floor(entry_shift/6)+entry_shift%6/3*(1-(nearest_h_d-nearest_h_f)/3)
+            print("N new files"+str(n_new_files))
+            entry_delta = (hour_entry%6)-(nearest_h_d-nearest_h_f)
+            
 
     #finding nearest dataset
-    diff = date_d-now
+    date_f1 = now.replace(hour= nearest_h_f)-timedelta(hours= n_new_files*6)
+    date_d = date_f1 + timedelta(hours=(nearest_h_d-nearest_h_f)+entry_delta)
+    offset1 = int(round(((date_d-date_f1).total_seconds()/(60*60))/3)*3)
 
-    if(diff.total_seconds() < -60*60):
-        print_m("Sorry can't download past data.\n")
-        return 0
-    elif(diff.total_seconds()>60*60*24):
-        print_m("Sorry can't download data more than 24 hours in advance.\n")
-        return 0
-    else:
-        h = now.hour
-        t_h = math.floor(h/6)
-        
-        date_f1 = now.replace(hour= int(datasets[t_h]))
-        offset1 = int(round(((date_d-date_f1).total_seconds()/(60*60))/3)*3)
-
-        date_f2 = date_f1 - timedelta(hours=6)
-        offset2 = int(round(((date_d-date_f2).total_seconds()/(60*60))/3)*3)
+    date_f2 = date_f1 - timedelta(hours=6)
+    offset2 = int(round(((date_d-date_f2).total_seconds()/(60*60))/3)*3)
     
-    return([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
+    return ([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
 
 grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
 parse_grib = grib.parse_grib
@@ -272,125 +298,153 @@ def create_grid(res):
 
 #------------------------ Main function (Download) ---------------------------------
 
-def data_process():
+def start_process():
+    global active
+
+    if(not active):
+        active = 1
+        process = DataProcess()
+        process.start()
+    
+
+class DataProcess(Thread):
    
+    def run(self):
+        global active
    #Number of altitude layers in the grib file
-    n_layer = 9
-
-    
-
-
-    grid = int(var_radio.get())
-    add_airports = air_check.get()
-    try:
-        grid_res= int(float(root.reso_box.get())*100)
-    except:
-        grid_res = 100
-    print(grid_res)
-    
-    
-
-    dates = get_data_time()
-    if(not dates):
-        return
-
-    #Get the wind data
-    if 1:
-        #Get first datasets
-        data_log = open("./data/data","w")
-        n = 0
-        if(not get_grib(dates[n],0,grid_res)):
-            n = 1
-            print_m("Data not available yet.\n")
-            if(not get_grib(dates[n],0),grid_res):
-                print_m("Error : Couldn't retrieve data...\n")
-                return
-        data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
-
-        #get additional datasets
-        if(dates[2]['n_forecast']):
-            print_m("Downloading extra forecast data:\n")
-            offset = dates[n]['offset']
-            for i in range(0,dates[2]['n_forecast']):
-                offset = offset+3
-                sleep(5)
-                dates[n]['offset'] = offset
-                if(not get_grib(dates[n],i+1,grid_res)):
-                    print_m("Error : Couldn't retrieve data...\n")
-                    return
-                else:
-                    data_log.write(str(dates[n]['date_f']+timedelta(hours=offset))[0:16]+"\n")
-        print_m("Wind data successfully retrieved...\n")
-
-        data_log.close()
-
-    #Get the metars
-    if 1:
-        airports = open_list("./data/airports")
-
-        metars = get_metars()
-        tafs = get_tafs()
-
-        met_tafs = compile_metars_tafs(airports,metars,tafs)
-        with open("./data/met_taf","w") as met_taf_file:
-            json.dump(met_tafs,met_taf_file)
-
-    else:
-        with open("./data/met_taf","r") as met_taf_file:
-            met_tafs = json.load(met_taf_file)
-  
-
-    #Uses external module to parse grib to json
-    print_m("Extracting wind data...\n")
-
-    if(grid):
-        network = create_grid(grid_res)
-    else:
-        network = open_list('./data/stations')
-        shutil.copy("./data/stations","./output/wx_station_list.txt")
         
-    data = extract_grib(network,0,0,grid_res)
-    
-    if((not grid) or add_airports):
-        airports_out = extract_grib(met_tafs,0,1,grid_res)
-        data.extend(airports_out)
-    else:
-        data.extend(met_tafs)
+        n_layer = 9
+        grid = int(var_radio.get())
 
-    compile_output(data,n_layer,0) 
+        export, err = read_config("Export","generate_export_files",bool,[0,1])
+        if(err):
+            active = 0
+            return
 
-    if 0:    
-        with open("./output/export"+str(grid_res)+".0","w") as export_data:
-            json.dump(data,export_data)
-    
-    
-    if(dates[2]['n_forecast']):
-        for i in range(0,dates[2]['n_forecast']):
-            #uses external module
-            print_m("Extracting wind data...\n")
-            data = extract_grib(network,i+1,0,grid_res)
-            if((not grid) or add_airports):
-                airports_out = extract_grib(met_tafs,i+1,1,grid_res)
-                data.extend(airports_out)
-            else:
-                data.extend(met_tafs)
-            
-            compile_output(data,n_layer,i+1)
-            
-            if 0:
-                with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_data:
-                    json.dump(data,export_data)
-            
+        if grid:
+            res, err = read_config("Resolution","grid_mode_resolution",float,[0.25,0.5,1])
+            if(err):
+                active = 0
+                return
 
-    with open("./data/airports","r") as fp: 
-        data = fp.read()
-        data = "\n"+data
-        with open ("./output/wx_station_list.txt", 'a') as out: 
-            out.write(data)
+        else:
+            res, err = read_config("Resolution","stations_mode_grid_resolution",float,[0.25,0.5,1])
+            if(err):
+                active = 0
+                return
+
+        grid_res = int(100*res)
+        print_m("Grid resolution is "+str(res)+"°.\n")
+
+        add_airports, err = read_config("Include","add_airports_to_full_grid",bool,[0,1])
+        if(err):
+            active = 0
+            return
+        
+        dates = get_data_time()
+
+        #Get the wind data
+        if 1:
+            #Get first datasets
+            data_log = open("./data/data","w")
+            n = 0
+            if(not get_grib(dates[n],0,grid_res)):
+                n = 1
+                print_m("Data not available yet.\n")
+                if(not get_grib(dates[n],0,grid_res)):
+                    print_m("Error : Couldn't retrieve data...\n")
+                    active = 0
+                    return
+                    
+            data_log.write(str(dates[n]['date_f']+timedelta(hours=dates[n]['offset']))[0:16]+"\n")
+
+            #get additional datasets
+            if(dates[2]['n_forecast']):
+                print_m("Downloading extra forecast data:\n")
+                offset = dates[n]['offset']
+                for i in range(0,dates[2]['n_forecast']):
+                    offset = offset+3
+                    sleep(5)
+                    dates[n]['offset'] = offset
+                    if(not get_grib(dates[n],i+1,grid_res)):
+                        print_m("Error : Couldn't retrieve data...\n")
+                        active = 0
+                        return
+                    else:
+                        data_log.write(str(dates[n]['date_f']+timedelta(hours=offset))[0:16]+"\n")
+            print_m("Wind data successfully retrieved...\n")
+
+            data_log.close()
+
+        #Get the metars
+        if 1:
+            airports = open_list("./data/airports")
+
+            metars = get_metars()
+            tafs = get_tafs()
+
+            met_tafs = compile_metars_tafs(airports,metars,tafs)
+            with open("./data/met_taf","w") as met_taf_file:
+                json.dump(met_tafs,met_taf_file)
+
+        else:
+            with open("./data/met_taf","r") as met_taf_file:
+                met_tafs = json.load(met_taf_file)
     
-    print_m("Complete !\n")
-    shutil.copy("./data/data","./output/out")
-    init()
+
+        #Uses external module to parse grib to json
+        print_m("Extracting wind data...\n")
+
+        if(grid):
+            network = create_grid(grid_res)
+        else:
+            network = open_list('./data/stations')
+            shutil.copy("./data/stations","./output/wx_station_list.txt")
+            
+        data = extract_grib(network,0,0,grid_res)
+        
+        if((not grid) or add_airports):
+            airports_out = extract_grib(met_tafs,0,1,grid_res)
+            data.extend(airports_out)
+        else:
+            data.extend(met_tafs)
+
+        compile_output(data,n_layer,0) 
+
+        if export: 
+            print_m("Exporting compiled data...\n")
+            with open("./output/export"+str(grid_res)+".0","w") as export_data:
+                json.dump(data,export_data)
+        
+        
+        if(dates[2]['n_forecast']):
+            for i in range(0,dates[2]['n_forecast']):
+                #uses external module
+                print_m("Extracting wind data...\n")
+                data = extract_grib(network,i+1,0,grid_res)
+                if((not grid) or add_airports):
+                    airports_out = extract_grib(met_tafs,i+1,1,grid_res)
+                    data.extend(airports_out)
+                else:
+                    data.extend(met_tafs)
+                
+                compile_output(data,n_layer,i+1)
+                
+                if export:
+                    print_m("Exporting compiled data...\n")
+                    with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_data:
+                        json.dump(data,export_data)
+                
+
+        with open("./data/airports","r") as fp: 
+            data = fp.read()
+            data = "\n"+data
+            with open ("./output/wx_station_list.txt", 'a') as out: 
+                out.write(data)
+        
+        print_m("Complete !\n")
+        shutil.copy("./data/data","./output/out")
+        init()
     
     
 #------------------- UI -------------------------
@@ -405,38 +459,44 @@ def show_data(n):
         root.date_field.delete(0,"end")
         root.date_field.insert(0,dates[int(n)-1])
         root.slider.set(n)
-        root.update()
         shutil.copy("./output/out."+str(int(n)-1),"./output/current_wx_snapshot.txt")
+        root.update()
 
+def update_time_combox(dummy):
+    now, nearest_h_d,nearest_h_f = find_start_time()
+    print("called")
+    hours = {"--":"--"}
+    for i in range(0,9):
+        hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
+
+    root.time_box['values']= list(hours)
+    print(list(hours))
+    root.time_box.set(hours['--'])
+    root.time_box['state'] = 'readonly'
+    root.keys = hours
 
 def init():
+    global active
+    active = 0
+
     if(os.path.exists("./output/out.0")):
         try:
             with open("./output/out") as logs:
                 dates = logs.readlines()
                 n_entry = len(dates)
         except:
-                shutil.copy("./data/data","./output/out")
-                init()
-                return
-                
+                n_entry = 0  
     else:
         n_entry = 0
+
     root.slider= tk.Scale(root.left, from_=1, to=n_entry, orient=tk.HORIZONTAL,label = "Forecast :",command = show_data )
     root.slider.grid(column = 0,row = 0,padx = (10,5),pady = (0,2))
-    show_data(1)
-    root.start_field.delete(0,"end")
-    root.start_field.insert(0,"dd/hh")
-    root.start_field.bind("<Button-1>", clear_search) 
-    root.for_field.delete(0,"end")
-    root.for_field.insert(0,"1")
+   
+    update_time_combox(1)
+
     if(var_radio.get()=="2"):
         var_radio.set(0)
     root.update()
-    
-
-def clear_search(event):
-   root.start_field.delete(0, tk.END) 
 
 
 def read_me():
@@ -445,8 +505,8 @@ def read_me():
     messagebox.showinfo('', 'Please read ReadMe.txt in:'+executable)
     shutil.copy(path+"ReadMe.txt",executable)
     
-
 root = tk.Tk()
+
 root.left = tk.LabelFrame(root, text="Curent data", width = 130,height = 110)
 root.left.grid_propagate(0)
 root.left.grid(row=0,column =0,pady=(0,10))
@@ -461,15 +521,19 @@ root.slider = None
 
 root.date_label = tk.Label(root.right,text = "Start date (optionnal) :",width =20)
 root.date_label.grid(column =0,row=1,pady=(0,0),padx = (10,5))
-root.start_field = tk.Entry(root.right,width=8)
-root.start_field.grid( column = 1,row=1,sticky=tk.W,pady=(0,0),padx = (5,5))
-root.for_label = tk.Label(root.right,text = "Number of forecasts (1-4) :")
+root.time_box = ttk.Combobox(root.right, values = [],width = 5)
+ttk.Style().configure('TCombobox', postoffset=(0,0,15,0))
+
+root.time_box.grid( column = 1,row=1,sticky=tk.W,pady=(0,0),padx = (5,5))
+root.time_box.bind("<Button-1>",update_time_combox)
+
+root.for_label = tk.Label(root.right,text = "Number of forecasts :")
 root.for_label.grid(column =0,row=0,pady=(2,5),padx = (10,5))
-root.for_field = tk.Entry(root.right, text = "0",width=8)
+root.for_field = tk.Spinbox(root.right,width=6,from_=1, to=5)
 root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(16,10),padx = (5,5))
 
 var_radio = StringVar()
-air_check = tk.IntVar()
+
 var_radio.set(2)
  
 root.radio_1 = Radiobutton(root.right, text = "Stations", variable = var_radio, value = 0)
@@ -477,14 +541,9 @@ root.radio_1.grid(column = 2,row = 0, padx=(12,0),pady=(6,0))
  
 root.radio_2 = Radiobutton(root.right, text = "Grid", variable = var_radio, value = 1)
 root.radio_2.grid(column=3,columnspan=2,row = 0,pady=(6,0))
-root.check = tk.Checkbutton(root.right,text='Airports',variable=air_check, onvalue=1, offvalue=0)
-root.check.grid(column=2,row = 1)
 
-root.reso_box = ttk.Combobox(root.right, values = ["1","0.5","0.25"])
-root.reso_box.set("Data resolution")
-root.reso_box.grid(column=0,row=2)        
-
-root.button = tk.Button(root.right,text = "Download data", command = data_process)
+      
+root.button = tk.Button(root.right,text = "Download data", command = start_process)
 root.button.grid(column = 2,row = 2,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
 root.help = tk.Button(root.right,text = "?", command = read_me)
 root.help.grid(column = 2,row = 2,sticky=tk.W,pady=(0,11))
