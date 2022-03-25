@@ -202,57 +202,40 @@ def compile_output(data,n_layer,n):
 def find_start_time():
     now = datetime.now(timezone.utc)
     h = now.hour
-    now = now.replace(second=0, minute = 0, microsecond=0)
-    nearest_hour_data = hours = math.floor(h/6)*6
-    nearest_hour_forecast = nearest_hour_data + math.floor((now-now.replace(hour=nearest_hour_data)).seconds/(60*60*3))*3
-    nearest_hour_data_t = now.replace(hour=nearest_hour_data)
+    now_c = now.replace(second=0, minute = 0, microsecond=0)
+    nearest_hour_data = math.floor(h/6)*6
+    nearest_hour_forecast = nearest_hour_data + math.floor((now_c-now_c.replace(hour=nearest_hour_data)).seconds/(60*60*3))*3
+    nearest_hour_data_t = now_c.replace(hour=nearest_hour_data)
     nearest_hour_forecast_t = nearest_hour_data_t+timedelta(hours=(nearest_hour_forecast-nearest_hour_data)%24)
-    print(nearest_hour_data_t)
-    print(nearest_hour_forecast_t)
+
     return  now, nearest_hour_data_t, nearest_hour_forecast_t
     
-
 
 def get_data_time():
 
     #Getting user entry
-    now, nearest_h_f, nearest_h_d = find_start_time()
+    now, nearest_h_d,nearest_h_f = find_start_time()
     print_m("Actual time : "+str(now)[0:19]+" UTC\n")
 
     n_forecast = int(root.for_field.get())-1
     
     entry = root.time_box.get()
-    print(root.keys)
-    if(entry == "--"):
-        hour_entry = nearest_h_d
-        entry_delta = 0
-    else:
-        hour_entry = int(entry[:entry.index(":")])
-        entry = entry[entry.index("+"):]
-        entry_delta = int(entry[:entry.index(")")])
-    
-
-    #In case a time was selected and the time has passed before user confirmed 
-    n_new_files = 0
-    original_start = (hour_entry-entry_delta)%24
-    if(not (original_start == nearest_h_d)):
-        print("True")
-        time_passed= (nearest_h_d-original_start)%24
-        print("time passed"+str(time_passed))
-        entry_shift = entry_delta-time_passed
-        print("Entry shift"+str(entry_shift))
-        if(entry_shift>=0):
-            entry_delta = entry_shift
+    time_entry = root.keys[entry]
+    print("this is the time entry "+time_entry)
+    next_forecast_delay,err = read_config("Time","skip_to_next_forecast_delay",int,range(0,180))
+    if(time_entry == "--"):
+        if((not err) & ((now-nearest_h_f).total_seconds()>(next_forecast_delay*60))):
+            time_entry = nearest_h_f+timedelta(hours = 3)
         else:
-            entry_shift = abs(entry_shift)
-            n_new_files = math.floor(entry_shift/6)+entry_shift%6/3*(1-(nearest_h_d-nearest_h_f)/3)
-            print("N new files"+str(n_new_files))
-            entry_delta = (hour_entry%6)-(nearest_h_d-nearest_h_f)
-            
-
+            time_entry = nearest_h_f
+    else :
+        format = "%Y-%m-%d %H%z"
+        time_entry = datetime.strptime(time_entry[:-12]+"+0000", format)
+    
+    
     #finding nearest dataset
-    date_f1 = now.replace(hour= nearest_h_f)-timedelta(hours= n_new_files*6)
-    date_d = date_f1 + timedelta(hours=(nearest_h_d-nearest_h_f)+entry_delta)
+    date_f1 = nearest_h_d
+    date_d = time_entry
     offset1 = int(round(((date_d-date_f1).total_seconds()/(60*60))/3)*3)
 
     date_f2 = date_f1 - timedelta(hours=6)
@@ -470,9 +453,7 @@ def update_time_combox(dummy):
         hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
 
     root.time_box['values']= list(hours)
-    print(list(hours))
     root.time_box.set(hours['--'])
-    root.time_box['state'] = 'readonly'
     root.keys = hours
 
 def init():
@@ -526,6 +507,7 @@ ttk.Style().configure('TCombobox', postoffset=(0,0,15,0))
 
 root.time_box.grid( column = 1,row=1,sticky=tk.W,pady=(0,0),padx = (5,5))
 root.time_box.bind("<Button-1>",update_time_combox)
+root.time_box['state'] = 'readonly'
 
 root.for_label = tk.Label(root.right,text = "Number of forecasts :")
 root.for_label.grid(column =0,row=0,pady=(2,5),padx = (10,5))
@@ -544,9 +526,9 @@ root.radio_2.grid(column=3,columnspan=2,row = 0,pady=(6,0))
 
       
 root.button = tk.Button(root.right,text = "Download data", command = start_process)
-root.button.grid(column = 2,row = 2,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
+root.button.grid(column = 2,row = 1,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
 root.help = tk.Button(root.right,text = "?", command = read_me)
-root.help.grid(column = 2,row = 2,sticky=tk.W,pady=(0,11))
+root.help.grid(column = 4,row = 1,sticky=tk.W,pady=(0,11))
 
 root.text = tk.Text(width = 70,height = 10)
 root.text.grid(row =2,column =0,columnspan=2)
