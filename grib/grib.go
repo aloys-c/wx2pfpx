@@ -10,6 +10,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"griblib"
 	"log"
 	"math"
@@ -41,6 +42,9 @@ func parse_grib(dic string, n int, interp int, res_i int) *C.char {
 		v := messages[i+2].Data()
 		k := 0
 		alt := messages[i].Section4.ProductDefinitionTemplate.FirstSurface.Value
+
+		fmt.Println(int(float64(i) / 27.0 * 100))
+
 		for _, station := range stations {
 
 			lon := station.Lon

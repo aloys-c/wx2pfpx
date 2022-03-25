@@ -9,7 +9,7 @@ from threading import Thread
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
-from tkinter import messagebox,StringVar,Radiobutton,ttk
+from tkinter import messagebox,IntVar,Radiobutton,ttk
 from datetime import datetime,timezone, timedelta
 
 metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
@@ -45,15 +45,17 @@ def xml2array(xml,name):
            
 
 def print_m(message):
+    root.text.configure(state='normal')
     root.text.insert("end",message)
     root.text.see(tk.END)
+    root.text.configure(state='disabled')
     root.update()
 
-def line_m():
-    root.text.delete("end-2l","end-1l")
 
 def print_r(n):
+    root.text.configure(state='normal')
     root.text.delete("end-"+str(n+1)+"c","end")
+    root.text.configure(state='disabled')
 
 def open_list(name):
     data =[]
@@ -85,7 +87,7 @@ def read_config(section,name,type,range):
 #------------------------------------ High level functions --------------------------------
 
 def get_metars():
-    print_m("Downloading METAR data...\n")
+    #print_m("Downloading METAR data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
@@ -98,7 +100,7 @@ def get_metars():
 
 
 def get_tafs():
-    print_m("Downloading TAF data...\n")
+    #print_m("Downloading TAF data...\n")
     ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     tafs = []
@@ -221,7 +223,6 @@ def get_data_time():
     
     entry = root.time_box.get()
     time_entry = root.keys[entry]
-    print("this is the time entry "+time_entry)
     next_forecast_delay,err = read_config("Time","skip_to_next_forecast_delay",int,range(0,180))
     if(time_entry == "--"):
         if((not err) & ((now-nearest_h_f).total_seconds()>(next_forecast_delay*60))):
@@ -297,15 +298,15 @@ class DataProcess(Thread):
    #Number of altitude layers in the grib file
         
         n_layer = 9
-        grid = int(var_radio.get())
+        grid = int(var_check.get())
 
-        export, err = read_config("Export","generate_export_files",bool,[0,1])
+        export, err = read_config("Export","generate_export_files",int,[0,1])
         if(err):
             active = 0
             return
 
         if grid:
-            res, err = read_config("Resolution","grid_mode_resolution",float,[0.25,0.5,1])
+            res, err = read_config("Resolution","grid_mode_resolution",float,[0.5,1])
             if(err):
                 active = 0
                 return
@@ -319,7 +320,9 @@ class DataProcess(Thread):
         grid_res = int(100*res)
         print_m("Grid resolution is "+str(res)+"°.\n")
 
-        add_airports, err = read_config("Include","add_airports_to_full_grid",bool,[0,1])
+       
+
+        add_airports, err = read_config("Include","add_airports_to_full_grid",int,[0,1])
         if(err):
             active = 0
             return
@@ -333,7 +336,7 @@ class DataProcess(Thread):
             n = 0
             if(not get_grib(dates[n],0,grid_res)):
                 n = 1
-                print_m("Data not available yet.\n")
+                print_m("Too early, data not available yet.\n")
                 if(not get_grib(dates[n],0,grid_res)):
                     print_m("Error : Couldn't retrieve data...\n")
                     active = 0
@@ -355,14 +358,14 @@ class DataProcess(Thread):
                         return
                     else:
                         data_log.write(str(dates[n]['date_f']+timedelta(hours=offset))[0:16]+"\n")
-            print_m("Wind data successfully retrieved...\n")
+            #print_m("Wind data successfully retrieved...\n")
 
             data_log.close()
 
         #Get the metars
         if 1:
             airports = open_list("./data/airports")
-
+            print_m("Downloading last weather reports...\n")
             metars = get_metars()
             tafs = get_tafs()
 
@@ -424,7 +427,7 @@ class DataProcess(Thread):
             data = "\n"+data
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
-        
+
         print_m("Complete !\n")
         shutil.copy("./data/data","./output/out")
         init()
@@ -447,7 +450,6 @@ def show_data(n):
 
 def update_time_combox(dummy):
     now, nearest_h_d,nearest_h_f = find_start_time()
-    print("called")
     hours = {"--":"--"}
     for i in range(0,9):
         hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
@@ -474,9 +476,9 @@ def init():
     root.slider.grid(column = 0,row = 0,padx = (10,5),pady = (0,2))
    
     update_time_combox(1)
-
-    if(var_radio.get()=="2"):
-        var_radio.set(0)
+    show_data(1)
+    if(var_check.get()==1):
+        var_check.set(1)
     root.update()
 
 
@@ -487,6 +489,7 @@ def read_me():
     shutil.copy(path+"ReadMe.txt",executable)
     
 root = tk.Tk()
+s = ttk.Style()
 
 root.left = tk.LabelFrame(root, text="Curent data", width = 130,height = 110)
 root.left.grid_propagate(0)
@@ -500,38 +503,36 @@ root.date_field = tk.Entry(root.left, text = "",width=15)
 root.date_field.grid( column = 0,row=1,padx = (10,5))
 root.slider = None
 
-root.date_label = tk.Label(root.right,text = "Start date (optionnal) :",width =20)
+root.date_label = tk.Label(root.right,text = "Start hour (optionnal) :",width =20)
 root.date_label.grid(column =0,row=1,pady=(0,0),padx = (10,5))
 root.time_box = ttk.Combobox(root.right, values = [],width = 5)
-ttk.Style().configure('TCombobox', postoffset=(0,0,15,0))
-
-root.time_box.grid( column = 1,row=1,sticky=tk.W,pady=(0,0),padx = (5,5))
+root.time_box.grid( column = 1,row=1,sticky=tk.W,pady=(3,0),padx = (5,0))
 root.time_box.bind("<Button-1>",update_time_combox)
 root.time_box['state'] = 'readonly'
 
+s.theme_create('combostyle', parent='winnative',settings = {'TCombobox':{'configure':{"postoffset":(0,0,15,0),'selectbackground': 'white','selectforeground': 'black'}}})
+s.theme_use('combostyle') 
+
 root.for_label = tk.Label(root.right,text = "Number of forecasts :")
-root.for_label.grid(column =0,row=0,pady=(2,5),padx = (10,5))
+root.for_label.grid(column =0,row=0,pady=(13,10),padx = (10,5))
 root.for_field = tk.Spinbox(root.right,width=6,from_=1, to=5)
-root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(16,10),padx = (5,5))
+root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(8,0),padx = (5,5))
 
-var_radio = StringVar()
-
-var_radio.set(2)
+var_check = IntVar()
+var_check.set(0)
  
-root.radio_1 = Radiobutton(root.right, text = "Stations", variable = var_radio, value = 0)
-root.radio_1.grid(column = 2,row = 0, padx=(12,0),pady=(6,0))
- 
-root.radio_2 = Radiobutton(root.right, text = "Grid", variable = var_radio, value = 1)
-root.radio_2.grid(column=3,columnspan=2,row = 0,pady=(6,0))
+root.check_grid = tk.Checkbutton(root.right, text='Load full grid',variable=var_check, onvalue=1, offvalue=0, justify=tk.RIGHT)
+root.check_grid.grid(column = 2,row = 0, columnspan=2, padx=(22,0),pady=(12,0),sticky=tk.NW)
 
       
 root.button = tk.Button(root.right,text = "Download data", command = start_process)
-root.button.grid(column = 2,row = 1,columnspan =2,sticky=tk.E,pady=(0,11),padx=(18,0))
+root.button.grid(column = 2,row = 1,sticky=tk.NE,pady=(0,0),padx=(25,0))
 root.help = tk.Button(root.right,text = "?", command = read_me)
-root.help.grid(column = 4,row = 1,sticky=tk.W,pady=(0,11))
+root.help.grid(column = 3,row = 1,sticky=tk.W,pady=(0,0))
 
 root.text = tk.Text(width = 70,height = 10)
 root.text.grid(row =2,column =0,columnspan=2)
+root.text.configure(state='disabled')
 
 icon = tk.PhotoImage(file = path+'src/icon.png')
 root.iconphoto(False, icon)

@@ -3,3 +3,4 @@
 2.0,4-5: grid file was wrong, added grid mode.
 2.1,21 : was working nice.
 2.2,22 : Added interpolation.
+2.4,24 : Updated interface and time selection, added setting file.
