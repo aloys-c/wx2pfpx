@@ -306,13 +306,13 @@ class DataProcess(Thread):
             return
 
         if grid:
-            res, err = read_config("Resolution","grid_mode_resolution",float,[0.5,1])
+            res, err = read_config("Resolution","full_grid_mode_resolution",float,[0.5,1])
             if(err):
                 active = 0
                 return
 
         else:
-            res, err = read_config("Resolution","stations_mode_grid_resolution",float,[0.25,0.5,1])
+            res, err = read_config("Resolution","default_network_interpolation_resolution",float,[0.25,0.5,1])
             if(err):
                 active = 0
                 return
@@ -327,6 +327,11 @@ class DataProcess(Thread):
             return
         
         dates = get_data_time()
+
+        try:
+            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 2) #just a log to know if my app has some success ! :)
+        except:
+            pass
 
         #Get the wind data
         if 1:
@@ -427,6 +432,10 @@ class DataProcess(Thread):
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
 
+        try:
+            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 10) #just a log to know if my app has some success ! :)
+        except:
+            pass
 
         print_m("Complete !\n")
         shutil.copy("./data/data","./output/out")
@@ -435,7 +444,6 @@ class DataProcess(Thread):
     
 #------------------- UI -------------------------
 n_entry = 0
-
 
 def show_data(n):
     if(os.path.exists("./output/out.0")):
@@ -451,7 +459,7 @@ def show_data(n):
 def update_time_combox(dummy):
     now, nearest_h_d,nearest_h_f = find_start_time()
     hours = {"--":"--"}
-    for i in range(0,9):
+    for i in range(0,8):
         hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
 
     root.time_box['values']= list(hours)
@@ -521,8 +529,8 @@ root.for_field.grid( column = 1,row=0,sticky=tk.W,pady=(8,0),padx = (5,5))
 var_check = IntVar()
 var_check.set(0)
  
-root.check_grid = tk.Checkbutton(root.right, text='Load full grid',variable=var_check, onvalue=1, offvalue=0, justify=tk.RIGHT)
-root.check_grid.grid(column = 2,row = 0, columnspan=2, padx=(22,0),pady=(12,0),sticky=tk.NW)
+root.check_grid = tk.Checkbutton(root.right, text='Use full grid',variable=var_check, onvalue=1, offvalue=0, justify=tk.RIGHT)
+root.check_grid.grid(column = 2,row = 0, columnspan=2, padx=(23,0),pady=(12,0),sticky=tk.NW)
 
       
 root.button = tk.Button(root.right,text = "Download data", command = start_process)
@@ -539,7 +547,7 @@ root.iconphoto(False, icon)
 
 init()
 
-root.title("Wx2pfpx")
+root.title("wx2pfpx")
 root.resizable(0, 0)
 
 # Run and display the window
