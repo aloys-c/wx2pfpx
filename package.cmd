@@ -13,7 +13,7 @@ copy "dist\wx2pfpx.exe" "wx2pfpx_pack\"
 
 copy "src\ReadMe.txt" "wx2pfpx_pack\"
 copy "src\wx2pfpx.png" "wx2pfpx_pack\"
-copy "src\Stations.png" "wx2pfpx_pack\"
+copy "src\default_network.png" "wx2pfpx_pack\"
 copy "src\documentation\*" "wx2pfpx_pack\images_doc"
 copy "settings.cfg" "wx2pfpx_pack\"
 
