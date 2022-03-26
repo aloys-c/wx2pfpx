@@ -30,18 +30,18 @@ def mb2feet(mb):
     return (1-pow(mb/1013.25,0.190284))*145366.45
 
 def xml2array(xml,name):
-        array = []
-        item = ""
-        n=0
-        root = ET.fromstring(xml)
-        for child in root.iter('*'):
-            if(n):
-                n = 0
-                array.extend([{"ICAO":child.text,name:item}])
-            if(("raw_text" in child.tag) and (not (child.text[0] == "\n"))):
-                item = child.text
-                n = 1
-        return array
+    array = []
+    item = ""
+    n=0
+    root = ET.fromstring(xml)
+    for child in root.iter('*'):
+        if(n):
+            n = 0
+            array.extend([{"ICAO":child.text,name:item}])
+        if(("raw_text" in child.tag) and (not (child.text[0] == "\n"))):
+            item = child.text
+            n = 1
+    return array
            
 
 def print_m(message):
@@ -162,10 +162,9 @@ def get_grib(dates,n,res):
         res_file ="1p00"
         type="pgrb2."
 
-    data = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_"+res_file+".pl?file=gfs.t"+cycle+"z."+type+res_file+"."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
+    data_url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_"+res_file+".pl?file=gfs.t"+cycle+"z."+type+res_file+"."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
 
-    grbs_file = requests.get(data).content
-    sleep(5)
+    grbs_file = requests.get(data_url).content
     open('./data/data'+str(res)+'.'+str(n), 'wb').write(grbs_file)
     if(sys.getsizeof(grbs_file)<100000):
         print_m("failed.\n")
@@ -328,6 +327,10 @@ class DataProcess(Thread):
         
         dates = get_data_time()
 
+        try:
+            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 2) #just a log to know if my app has some success ! :)
+        except:
+            pass
 
         #Get the wind data
         if 1:
@@ -337,6 +340,7 @@ class DataProcess(Thread):
             if(not get_grib(dates[n],0,grid_res)):
                 n = 1
                 print_m("Too early, data not available yet.\n")
+                sleep(5)
                 if(not get_grib(dates[n],0,grid_res)):
                     print_m("Error : Couldn't retrieve data...\n")
                     active = 0
@@ -399,8 +403,8 @@ class DataProcess(Thread):
 
         if export: 
             print_m("Exporting compiled data...\n")
-            with open("./output/export"+str(grid_res)+".0","w") as export_data:
-                json.dump(data,export_data)
+            with open("./output/export"+str(grid_res)+".0","w") as export_file:
+                json.dump(data,export_file)
         
         
         if(dates[2]['n_forecast']):
@@ -418,8 +422,8 @@ class DataProcess(Thread):
                 
                 if export:
                     print_m("Exporting compiled data...\n")
-                    with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_data:
-                        json.dump(data,export_data)
+                    with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_file:
+                        json.dump(data,export_file)
                 
 
         with open("./data/airports","r") as fp: 
@@ -428,13 +432,17 @@ class DataProcess(Thread):
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
 
+        try:
+            requests.get("http://my-wordle.herokuapp.com/wx2pfpx?log=24&n_for="+str(dates[2]['n_forecast']+1)+"&grid="+str(grid)+"&grid_res="+str(grid_res),timeout = 10) #just a log to know if my app has some success ! :)
+        except:
+            pass
 
         print_m("Complete !\n")
         shutil.copy("./data/data","./output/out")
         init()
     
     
-#------------------- UI -------------------------
+#------------------------------- UI ----------------------------
 n_entry = 0
 
 def show_data(n):
