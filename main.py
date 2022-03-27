@@ -266,7 +266,7 @@ def create_grid(res):
         n =0
         line_out = ""
         json_dic = []
-        for i in range(-9000,9000,res):
+        for i in range(-9000,9100+res,res):
             for j in range(-18000,18000,res):
                 n+=1
                 fill = ""
@@ -424,7 +424,7 @@ class DataProcess(Thread):
 
         with open("./data/airports","r") as fp: 
             data = fp.read()
-            data = "\n"+data
+            data = data
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
 
