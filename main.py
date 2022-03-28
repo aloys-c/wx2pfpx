@@ -87,19 +87,23 @@ def get_metars_tafs():
     metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
     taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 
-    ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG","KH KI KJ KK KL KM KN KO KP KQ KR","KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
+    ids = ["A B C D","E F G H","KA KB KC KD KE KF KG","KH KI KJ KK KL KM KN KO KP KQ KR","KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0","L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
     tafs = []
 
+
     for i in ids:
         response = requests.get(taf_url+i)
-        tafs = xml2array(response.content,"TAF")
-        tafs.extend(tafs)
+        temp = xml2array(response.content,"TAF")
+        tafs.extend(temp)
+        
         response = requests.get(metar_url+i)
-        metars = xml2array(response.content,"METAR")
-        metars.extend(metars)
+        temp = xml2array(response.content,"METAR")
+        metars.extend(temp)
 
+    print(len(metars))
+    print(len(tafs))
     return metars, tafs
 
 
@@ -324,6 +328,7 @@ class DataProcess(Thread):
             return
         
         dates = select_data_time()
+
 
         #---------- Downloading the data -------------
 
