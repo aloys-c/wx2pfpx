@@ -1,6 +1,6 @@
 # wx2pfpx (For requests, contact me on https://github.com/Dakara93/wx2pfpx/issues)
 
-## A simple weather data provider script for the discontinuated Professional Flight Plan X software.
+## A simple weather data provider script for the discontinued Professional Flight Plan X software.
 
 ### How to install :
 
@@ -9,7 +9,7 @@ The folder can be placed anywhere on the computer, a shortcut to the "wx2pfpx.ex
 
 ### How to use :
 
-PLEASE NOTE : the program freezes sometimes during processing, this is not an issue, just be patient, the download can sometimes take a few minutes or be rejected by the provider.
+PLEASE NOTE : the program freezes sometimes during processing, this is not an issue, just be patient, the download can sometimes take a few minutes or be rejected by the data provider.
 
 Open the script by double clicking on wx2pfpx.exe or the created shortcut on the Desktop.
 
@@ -31,11 +31,11 @@ Keep in mind that the weather data source is a free, but limited service. It is 
 
 The script fetches raw weather data, data from the NOAA GFS (Global Forecast System), US national weather service, which is then compiled to a single file that can be imported in PFPX. The data source is updated 4 times a day, and provides forecasts for every 3 following hours up to 16 days. The METAR and TAF data is imported from the NOAA AWC (Aviation Weather Center) for about 5000 main airports.
 
-The default stations network consists of about 15000 reference airports from PFPX as well as about 500 additional stations located in remote areas (See default network image file). Wind/temperature data is provided for each of them by using a weighted interpolation of the NOAA grid data (resolution of at least 1°/~111km, 65160 points, but can be changed in the settings up to 0.25°/28km, 1042560 points.). Imported data is then extrapolated in a grid by PFPX. This method allows to process the data quickly and in an optimized way, covering mostly the whole map and fits well for flying on continents.  
+The default stations network consists of about 15000 reference airports as well as more than 500 additional stations located in remote areas (See default network image file). Wind/temperature data is provided for each of them by using a weighted interpolation of the NOAA grid data (resolution of at least 1°/~111km, 65160 points, but can be changed in the settings up to 0.25°/28km, 1042560 points.). Imported data is then extrapolated in a grid by PFPX. This method allows to process the data quickly and in an optimized way, covering mostly the whole map and fits well for flying on continents.  
 
 For more precision, it is also possible to generate an output file containing the whole NOAA grid dataset by checking the "Use full grid" option. This takes more time to process and load into PFPX (especially for higher grid resolutions), but will cover precisely and homogeneously the whole map. That method could fit better for long haul flights over remote areas.
 
-Please note that the data is provided only up to FL400, higher altitudes will have lower precision, and data can be considered invalid from FL420-FL450 up.
+Please note that the data is provided only up to FL400, higher altitudes will have lower precision, and data can be assumed invalid from FL420-FL450 up.
 
 
 Main differences with official server :
@@ -49,7 +49,7 @@ Main differences with official server :
 
 You can edit the file "settings.cfg" as a normal text file. It allows to set the resolutions of the grid used for data interpolation on stations (1°/111km, 0.5°/55km, or 0.25°/28km), and also the grid imported when using full grid mode (see documentation folder for exemples of grid effect on precision). Increasing resolution can make processing and loading times much higher, 0.25° resolution is not available for full grid mode as data amount is too high for PFPX.
 
-Other settings are available allowing to export the whole data in JSON format, or setting the default forecast time used when starting time is left blank.
+Other settings are available as welll allowing to export the whole data in JSON format, or setting the default forecast time used when starting time is left blank.
 
 
 

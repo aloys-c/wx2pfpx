@@ -1,21 +1,15 @@
 
-import requests
-import xml.etree.ElementTree as ET
-import configparser
-import json
+import requests, json, configparser
 import ctypes
 import math
+import xml.etree.ElementTree as ET
 from threading import Thread
 from time import sleep
 import sys,os,shutil
 import tkinter as tk
-from tkinter import messagebox,IntVar,Radiobutton,ttk
+from tkinter import messagebox,IntVar,ttk
 from datetime import datetime,timezone, timedelta
 
-metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
-taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
-
-active = 0
 
 if getattr( sys, 'frozen', False ) :
                 # runs in a pyinstaller bundle
@@ -25,9 +19,6 @@ else :
 
 #------------------- low level functions --------------------------------
 
-
-def mb2feet(mb):
-    return (1-pow(mb/1013.25,0.190284))*145366.45
 
 def xml2array(xml,name):
     array = []
@@ -52,12 +43,13 @@ def print_m(message):
     root.update()
 
 
-def print_r(n):
+def print_rem(n):
     root.text.configure(state='normal')
     root.text.delete("end-"+str(n+1)+"c","end")
     root.text.configure(state='disabled')
 
-def open_list(name):
+
+def open_list_file(name):
     data =[]
     with open(name) as list:
         lines = list.readlines()
@@ -67,7 +59,8 @@ def open_list(name):
 
     return data
 
-def read_config(section,name,type,range):
+
+def read_config_file(section,name,type,range):
     config = configparser.ConfigParser()
     try:
         config.read('settings.cfg')
@@ -84,62 +77,60 @@ def read_config(section,name,type,range):
     else:
         messagebox.showinfo('', 'Value of entry "'+name+"' is incorrect in settings file, should be "+str(range)+".")
         return 0, 1
+
 #------------------------------------ High level functions --------------------------------
 
-def get_metars():
-    #print_m("Downloading METAR data...\n")
-    ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
+
+def get_metars_tafs():
+    print_m("Downloading last weather reports...\n")
+
+    metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+    taf_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+
+    ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG","KH KI KJ KK KL KM KN KO KP KQ KR","KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
 
     metars = []
-
-    for i in ids:
-        response = requests.get(metar_url+i)
-        temp = xml2array(response.content,"METAR")
-        metars.extend(temp)
-    return metars
-
-
-def get_tafs():
-    #print_m("Downloading TAF data...\n")
-    ids = ["A B C D","E F G H"] + ["KA KB KC KD KE KF KG"," KH KI KJ KK KL KM KN KO KP KQ KR"," KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0"]+["L M N O P Q","R S T U V W X Y Z"]
-
     tafs = []
 
     for i in ids:
         response = requests.get(taf_url+i)
-        temp = xml2array(response.content,"TAF")
-        tafs.extend(temp)
+        tafs = xml2array(response.content,"TAF")
+        tafs.extend(tafs)
+        response = requests.get(metar_url+i)
+        metars = xml2array(response.content,"METAR")
+        metars.extend(metars)
 
-    return tafs
+    return metars, tafs
 
 
-def compile_metars_tafs(airports,metars,tafs):
+def compile_metars_tafs(arpts,metars,tafs):
     print_m("Compiling METAR and TAF data...")
     n = 0
-    data = airports.copy()
-    length = len(data)
-    print_m(" 0%\n")
-    for arpts in data:
+    airports = arpts.copy()
+    length = len(airports)
+    print_m(" 0%")
+    for airport in airports:
             n = n+1
             if(n%1000==0):
 
-                print_r(4)
-                perc = str(round(n/length*100))+"%\n"
-                if(len(perc)<4):
+                print_rem(3)
+                perc = str(round(n/length*100))+"%"
+                if(len(perc)<3):
                     perc = " "+perc
                 print_m(perc)
-            if(any(metars.get('ICAO') == arpts['code'] for metars in metars)):
-                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == arpts['code']), None)
-                arpts['METAR'] = metars[index]['METAR']
+            if(any(metars.get('ICAO') == airport['code'] for metars in metars)):
+                index = next((index for (index, d) in enumerate(metars) if d["ICAO"] == airport['code']), None)
+                airport['METAR'] = metars[index]['METAR']
             else:
-                arpts['METAR'] = 0
+                airport['METAR'] = 0
             
-            if(any(tafs.get('ICAO') == arpts['code'] for tafs in tafs)):
-                index = next((index for (index, d) in enumerate(tafs) if d["ICAO"] == arpts['code']), None)
-                arpts['TAF'] = tafs[index]['TAF']
+            if(any(tafs.get('ICAO') == airport['code'] for tafs in tafs)):
+                index = next((index for (index, d) in enumerate(tafs) if d["ICAO"] == airport['code']), None)
+                airport['TAF'] = tafs[index]['TAF']
             else:
-                arpts['TAF'] = 0
-    return data
+                airport['TAF'] = 0
+    print_m("\n")
+    return airports
 
 
 def get_grib(dates,n,res):
@@ -165,11 +156,13 @@ def get_grib(dates,n,res):
     data_url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_"+res_file+".pl?file=gfs.t"+cycle+"z."+type+res_file+"."+moment+"&lev_200_mb=on&lev_250_mb=on&lev_300_mb=on&lev_400_mb=on&lev_500_mb=on&lev_650_mb=on&lev_700_mb=on&lev_800_mb=on&lev_900_mb=on&var_TMP=on&var_UGRD=on&var_VGRD=on&leftlon=0&rightlon=360&toplat=90&bottomlat=-90&dir=%2Fgfs."+date+"%2F"+cycle+"%2Fatmos"
 
     grbs_file = requests.get(data_url).content
-    open('./data/data'+str(res)+'.'+str(n), 'wb').write(grbs_file)
+    
     if(sys.getsizeof(grbs_file)<100000):
         print_m("failed.\n")
         return 0
     else :
+        with open('./data/data.'+str(n), 'wb') as grbs_out:
+            grbs_out.write(grbs_file)
         print_m("success.\n")
         return 1
 
@@ -212,8 +205,7 @@ def find_start_time():
     return  now, nearest_hour_data_t, nearest_hour_forecast_t
     
 
-def get_data_time():
-
+def select_data_time():
     #Getting user entry
     now, nearest_h_d,nearest_h_f = find_start_time()
     print_m("Actual time : "+str(now)[0:19]+" UTC\n")
@@ -222,7 +214,7 @@ def get_data_time():
     
     entry = root.time_box.get()
     time_entry = root.keys[entry]
-    next_forecast_delay,err = read_config("Time","skip_to_next_forecast_delay",int,range(0,180))
+    next_forecast_delay,err = read_config_file("Time","skip_to_next_forecast_delay",int,range(0,180))
     if(time_entry == "--"):
         if((not err) & ((now-nearest_h_f).total_seconds()>(next_forecast_delay*60))):
             time_entry = nearest_h_f+timedelta(hours = 3)
@@ -243,6 +235,7 @@ def get_data_time():
     
     return ([{"date_f":date_f1,"offset":offset1},{"date_f":date_f2,"offset":offset2},{"n_forecast":n_forecast}])
 
+
 grib = ctypes.cdll.LoadLibrary(path+'grib/go_grib.so')
 parse_grib = grib.parse_grib
 parse_grib.restype = ctypes.c_void_p
@@ -261,12 +254,13 @@ def extract_grib(dic,num,int,res):
     out = ctypes.string_at(ptr)
     return json.loads(out)
 
+
 def create_grid(res):
     with open("./output/wx_station_list.txt","w") as file:
         n =0
         line_out = ""
         json_dic = []
-        for i in range(-9000,9100+res,res):
+        for i in range(-9000,9000+res,res):
             for j in range(-18000,18000,res):
                 n+=1
                 fill = ""
@@ -279,7 +273,9 @@ def create_grid(res):
         file.write(line_out)
         return json_dic
 
-#------------------------ Main function (Download) ---------------------------------
+#------------------------ Main process (Download) ---------------------------------
+
+active = 0
 
 def start_process():
     global active
@@ -294,24 +290,27 @@ class DataProcess(Thread):
    
     def run(self):
         global active
-   #Number of altitude layers in the grib file
         
+        #---- Gettings general parameters -------
+
+        #Number of altitude layers in the grib file
         n_layer = 9
+        
         grid = int(var_check.get())
 
-        export, err = read_config("Export","generate_export_files",int,[0,1])
+        export, err = read_config_file("Export","generate_export_files",int,[0,1])
         if(err):
             active = 0
             return
 
         if grid:
-            res, err = read_config("Resolution","full_grid_mode_resolution",float,[0.5,1])
+            res, err = read_config_file("Resolution","full_grid_mode_resolution",float,[0.5,1])
             if(err):
                 active = 0
                 return
 
         else:
-            res, err = read_config("Resolution","default_network_interpolation_resolution",float,[0.25,0.5,1])
+            res, err = read_config_file("Resolution","default_network_interpolation_resolution",float,[0.25,0.5,1])
             if(err):
                 active = 0
                 return
@@ -319,16 +318,16 @@ class DataProcess(Thread):
         grid_res = int(100*res)
         print_m("Grid resolution is "+str(res)+"°.\n")
 
-
-        add_airports, err = read_config("Include","add_airports_to_full_grid",int,[0,1])
+        add_airports, err = read_config_file("Include","add_airports_to_full_grid",int,[0,1])
         if(err):
             active = 0
             return
         
-        dates = get_data_time()
+        dates = select_data_time()
+
+        #---------- Downloading the data -------------
 
 
-        #Get the wind data
         if 1:
             #Get first datasets
             data_log = open("./data/data","w")
@@ -358,25 +357,24 @@ class DataProcess(Thread):
                         return
                     else:
                         data_log.write(str(dates[n]['date_f']+timedelta(hours=offset))[0:16]+"\n")
-            #print_m("Wind data successfully retrieved...\n")
+            #print_m("Wind data retrieved successfully...\n")
 
             data_log.close()
 
-        #Get the metars
+        #Get the metars and tafs
         if 1:
-            airports = open_list("./data/airports")
-            print_m("Downloading last weather reports...\n")
-            metars = get_metars()
-            tafs = get_tafs()
-
-            met_tafs = compile_metars_tafs(airports,metars,tafs)
-            with open("./data/met_taf","w") as met_taf_file:
-                json.dump(met_tafs,met_taf_file)
+            airports = open_list_file("./data/airports")
+           
+            metars, tafs = get_metars_tafs()
+            metars_tafs = compile_metars_tafs(airports,metars,tafs)
+            #with open("./data/metars_tafs","w") as metars_taf_file:
+                #json.dump(metars_tafs,metars_taf_file)
 
         else:
-            with open("./data/met_taf","r") as met_taf_file:
-                met_tafs = json.load(met_taf_file)
+            with open("./data/metars_tafs","r") as metars_taf_file:
+                metars_tafs = json.load(metars_taf_file)
     
+        #------- Processing the data -----------
 
         #Uses external module to parse grib to json
         print_m("Extracting wind data...\n")
@@ -384,16 +382,16 @@ class DataProcess(Thread):
         if(grid):
             network = create_grid(grid_res)
         else:
-            network = open_list('./data/stations')
+            network = open_list_file('./data/stations')
             shutil.copy("./data/stations","./output/wx_station_list.txt")
             
         data = extract_grib(network,0,0,grid_res)
         
         if((not grid) or add_airports):
-            airports_out = extract_grib(met_tafs,0,1,grid_res)
+            airports_out = extract_grib(metars_tafs,0,1,grid_res)
             data.extend(airports_out)
         else:
-            data.extend(met_tafs)
+            data.extend(metars_tafs)
 
         compile_output(data,n_layer,0) 
 
@@ -402,17 +400,16 @@ class DataProcess(Thread):
             with open("./output/export"+str(grid_res)+".0","w") as export_file:
                 json.dump(data,export_file)
         
-        
         if(dates[2]['n_forecast']):
             for i in range(0,dates[2]['n_forecast']):
                 #uses external module
                 print_m("Extracting wind data...\n")
                 data = extract_grib(network,i+1,0,grid_res)
                 if((not grid) or add_airports):
-                    airports_out = extract_grib(met_tafs,i+1,1,grid_res)
+                    airports_out = extract_grib(metars_tafs,i+1,1,grid_res)
                     data.extend(airports_out)
                 else:
-                    data.extend(met_tafs)
+                    data.extend(metars_tafs)
                 
                 compile_output(data,n_layer,i+1)
                 
@@ -421,7 +418,6 @@ class DataProcess(Thread):
                     with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_file:
                         json.dump(data,export_file)
                 
-
         with open("./data/airports","r") as fp: 
             data = fp.read()
             data = data
@@ -432,31 +428,7 @@ class DataProcess(Thread):
         print_m("Complete !\n")
         shutil.copy("./data/data","./output/out")
         init()
-    
-    
-#------------------------------- UI ----------------------------
-n_entry = 0
 
-def show_data(n):
-    if(os.path.exists("./output/out.0")):
-        with open("./output/out") as logs:
-            dates = logs.readlines()
-        
-        root.date_field.delete(0,"end")
-        root.date_field.insert(0,dates[int(n)-1])
-        root.slider.set(n)
-        shutil.copy("./output/out."+str(int(n)-1),"./output/current_wx_snapshot.txt")
-        root.update()
-
-def update_time_combox(dummy):
-    now, nearest_h_d,nearest_h_f = find_start_time()
-    hours = {"--":"--"}
-    for i in range(0,8):
-        hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
-
-    root.time_box['values']= list(hours)
-    root.time_box.set(hours['--'])
-    root.keys = hours
 
 def init():
     global active
@@ -479,7 +451,34 @@ def init():
     show_data(1)
     if(var_check.get()==1):
         var_check.set(1)
-    root.update()
+    root.update()  
+
+
+#------------------------------- UI ----------------------------
+n_entry = 0
+
+
+def show_data(n):
+    if(os.path.exists("./output/out.0")):
+        with open("./output/out") as logs:
+            dates = logs.readlines()
+        
+        root.date_field.delete(0,"end")
+        root.date_field.insert(0,dates[int(n)-1])
+        root.slider.set(n)
+        shutil.copy("./output/out."+str(int(n)-1),"./output/current_wx_snapshot.txt")
+        root.update()
+
+
+def update_time_combox(dummy):
+    now, nearest_h_d,nearest_h_f = find_start_time()
+    hours = {"--":"--"}
+    for i in range(0,8):
+        hours.update({str((nearest_h_f.hour+i*3)%24)+":00 (+"+str(3*i)+")":str(nearest_h_f+timedelta(hours=3*i))})
+
+    root.time_box['values']= list(hours)
+    root.time_box.set(hours['--'])
+    root.keys = hours
 
 
 def read_me():
