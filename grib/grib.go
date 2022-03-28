@@ -29,7 +29,7 @@ func parse_grib(dic string, n int, interp int, res_i int) *C.char {
 
 	json.Unmarshal([]byte(dic), &stations)
 
-	gribfile, err := os.Open("./data/data" + strconv.Itoa(int(res*100.0)) + "." + strconv.Itoa(n))
+	gribfile, err := os.Open("./data/data." + strconv.Itoa(n))
 	messages, err := griblib.ReadMessages(gribfile)
 
 	if err != nil {
@@ -151,14 +151,10 @@ func get_wind(u float64, v float64) (float64, float64, float64, int) {
 }
 
 func main() {
-	//parse_grib(0, 2, 1, 25)
-
 	print("/")
 	print(get_i(-90, -0.25, 0.25))
 	print("/")
-	print(get_i(60, 18.56, 100))
-
+	print(get_i(-90, -0.5, 0.5))
 	print("/")
-	print(get_i(60, 18.87, 100))
-
+	print(get_i(-90, -1, 1))
 }
