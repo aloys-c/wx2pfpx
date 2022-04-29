@@ -49,7 +49,7 @@ Main differences with official server :
 
 You can edit the file "settings.cfg" as a normal text file. It allows to set the resolutions of the grid used for data interpolation on stations (1°/111km, 0.5°/55km, or 0.25°/28km), and also the grid imported when using full grid mode (see documentation folder for exemples of grid effect on precision). Increasing resolution can make processing and loading times much higher, 0.25° resolution is not available for full grid mode as data amount is too high for PFPX.
 
-Other settings are available as welll allowing to export the whole data in JSON format, or setting the default forecast time used when starting time is left blank.
+Other settings are available as well like allowing to export the whole data in JSON format, setting the default forecast time used when starting time is left blank or keeping a number of previous forecasts.
 
 
 
