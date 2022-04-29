@@ -326,9 +326,16 @@ class DataProcess(Thread):
         if(err):
             active = 0
             return
+
+      
+        n_history, err = read_config_file("History","number_of_forecasts_to_keep",int,range(0,10))
+        if(err):
+            active = 0
+            return
         
         dates = select_data_time()
 
+      
 
         #---------- Downloading the data -------------
 
@@ -398,11 +405,32 @@ class DataProcess(Thread):
         else:
             data.extend(metars_tafs)
 
-        compile_output(data,n_layer,0) 
+
+        #Check how many forecasts already in folder and rearrange
+        lines = []
+        n_out = 0
+        n_past = 0
+
+        try:
+            with open("./output/out") as list:
+                lines = list.readlines()
+                n_out = len(lines)
+                print(n_out)
+                if(n_out>n_history):
+                    lines = lines[n_out-n_history:n_out]
+                    n_past= n_history
+                    for i in range(0,n_past):
+                        shutil.copy("./output/out."+str(n_out-n_past+i),"./output/out."+str(i))
+                else:
+                    n_past = n_out
+        except:
+            pass    
+
+        compile_output(data,n_layer,0+n_past) 
 
         if export: 
             print_m("Exporting compiled data...\n")
-            with open("./output/export"+str(grid_res)+".0","w") as export_file:
+            with open("./output/export"+str(grid_res)+"."+str(n_past),"w") as export_file:
                 json.dump(data,export_file)
         
         if(dates[2]['n_forecast']):
@@ -416,11 +444,11 @@ class DataProcess(Thread):
                 else:
                     data.extend(metars_tafs)
                 
-                compile_output(data,n_layer,i+1)
+                compile_output(data,n_layer,i+1+n_past)
                 
                 if export:
                     print_m("Exporting compiled data...\n")
-                    with open("./output/export"+str(grid_res)+"."+str(i+1),"w") as export_file:
+                    with open("./output/export"+str(grid_res)+"."+str(i+1+n_past),"w") as export_file:
                         json.dump(data,export_file)
                 
         with open("./data/airports","r") as fp: 
@@ -429,9 +457,15 @@ class DataProcess(Thread):
             with open ("./output/wx_station_list.txt", 'a') as out: 
                 out.write(data)
 
-
+       
+        print(lines)
+        with open("./data/data") as list:
+            datas = list.readlines()
+            lines = lines+datas
+            with open("./output/out","w") as out:
+                out.writelines(lines)
         print_m("Complete !\n")
-        shutil.copy("./data/data","./output/out")
+        #shutil.copy("./data/data","./output/out")
         init()
 
 
