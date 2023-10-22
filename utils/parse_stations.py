@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 
-metar_url = "https://aviationweather.gov/adds/dataserver_current/httpparam?datasource=stations&requestType=retrieve&fields=elevation_m&format=xml&stationString="
+metar_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?datasource=stations&requestType=retrieve&fields=elevation_m&format=xml&stationString="
 
 def xml2array(xml,s,e,name):
         array = []
