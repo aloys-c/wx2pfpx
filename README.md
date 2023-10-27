@@ -1,4 +1,4 @@
-[CHANGELOG]  
+**[CHANGELOG]  **
 
 **26OCT2023:** v2.7 - updated METAR URL to new NOAA API Dataserver (TAF remains on v2.6 URL pending further investigatation)
 
