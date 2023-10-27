@@ -84,7 +84,7 @@ def read_config_file(section,name,type,range):
 def get_metars_tafs():
     print_m("Downloading last weather reports...\n")
 
-    metar_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
+    metar_url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
     taf_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
 
     ids = ["A B C D","E F G H","KA KB KC KD KE KF KG","KH KI KJ KK KL KM KN KO KP KQ KR","KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0","L M N O P Q","R S T U V W X Y Z"]
