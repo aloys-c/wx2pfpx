@@ -16,9 +16,11 @@ copy "src\wx2pfpx.png" "wx2pfpx_pack\"
 copy "src\default_network.png" "wx2pfpx_pack\"
 copy "src\documentation\*" "wx2pfpx_pack\images_doc"
 copy "settings.cfg" "wx2pfpx_pack\"
+copy "src\wx2fs.txt" "wx2pfpx_pack\"
+copy "src\wx2fs.exe" "wx2pfpx_pack\"
 
-del "wx2pfpx2.5.zip"
-powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.5.zip'
+del "wx2pfpx2.6.1.zip"
+powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.6.1.zip'
 
 
 rmdir /s /q "build"

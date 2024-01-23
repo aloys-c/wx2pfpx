@@ -1,6 +1,3 @@
-[CHANGELOG (Fork)]   - 22OCT2023
-v2.6 - implemented latest NOAA API to enable "downloading latest weather reports" following launch of new NOAA API on 16OCT2023
-
 # wx2pfpx
 
 ## A simple weather data provider script for the discontinued Professional Flight Plan X software.
