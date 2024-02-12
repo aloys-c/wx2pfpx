@@ -19,8 +19,8 @@ copy "settings.cfg" "wx2pfpx_pack\"
 copy "src\wx2fs.txt" "wx2pfpx_pack\"
 copy "src\wx2fs.exe" "wx2pfpx_pack\"
 
-del "wx2pfpx2.6.1.zip"
-powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.6.1.zip'
+del "wx2pfpx2.6.3.zip"
+powershell Compress-Archive -Path 'wx2pfpx_pack' -DestinationPath 'wx2pfpx2.6.3.zip'
 
 
 rmdir /s /q "build"
