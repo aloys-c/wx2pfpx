@@ -1,7 +1,7 @@
 # wx2pfpx
 
 ## A simple weather data provider script for the discontinued Professional Flight Plan X software.
-
+![alt text](https://github.com/aloys-c/wx2pfpx/blob/main/src/wx2pfpx.png?raw=true)
 ### How to install :
 
 The folder can be placed anywhere on the computer, a shortcut to the "wx2pfpx.exe" file can be created and put on the Desktop for quick access. The output files are generated and stored in the folder named "output". This folder has to be selected in the PFPX as the "Active Sky" folder (settings on lower bar of screen), the data displayed in PFPX is then automatically refreshed each time the data is updated.
