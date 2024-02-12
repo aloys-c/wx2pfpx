@@ -1,7 +1,0 @@
-
-1.0,1-2-3:was wrong, data shifted. FSGRW
-2.0,4-5: grid file was wrong, added grid mode. AS
-2.1,21 : Updated grid reading.
-2.2,22 : Added interpolation.
-2.3,23 : Added grid resolution
-2.4,24 : Updated interface and time selection, added setting file.

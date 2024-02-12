@@ -1,5 +1,6 @@
 
 import requests, json, configparser
+import gzip
 import ctypes
 import math
 import xml.etree.ElementTree as ET
@@ -84,26 +85,25 @@ def read_config_file(section,name,type,range):
 def get_metars_tafs():
     print_m("Downloading last weather reports...\n")
 
-    metar_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?datasource=metars&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
-    taf_url = "https://aviationweather-cprk.ncep.noaa.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&fields=raw_text,station_id&format=xml&mostRecentForEachStation=constraint&hoursBeforeNow=3&stationString="
-
-    ids = ["A B C D","E F G H","KA KB KC KD KE KF KG","KH KI KJ KK KL KM KN KO KP KQ KR","KS KT KU KV KW KX KY KZ K1 K2 K3 K4 K5 K6 K7 K8 K9 K0","L M N O P Q","R S T U V W X Y Z"]
-
+    metar_url = "https://aviationweather.gov/data/cache/metars.cache.csv.gz"
+    taf_url = "https://aviationweather.gov/data/cache/tafs.cache.csv.gz"
+    
     metars = []
     tafs = []
 
+    response = requests.get(metar_url)
+    f = gzip.decompress(response.content)
+    for line in f.split(b"\n")[5:-1]:
+        metar = line.decode().split(",")
+        metars.extend([{'ICAO':metar[1],'METAR':metar[0]}])   
 
-    for i in ids:
-        response = requests.get(taf_url+i)
-        temp = xml2array(response.content,"TAF")
-        tafs.extend(temp)
-        
-        response = requests.get(metar_url+i)
-        temp = xml2array(response.content,"METAR")
-        metars.extend(temp)
 
-    print(len(metars))
-    print(len(tafs))
+    response = requests.get(taf_url)
+    f = gzip.decompress(response.content)
+    for line in f.split(b"\n")[5:-1]:
+        taf = line.decode().split(",")
+        tafs.extend([{'ICAO':taf[1],'TAF':taf[0]}])  
+
     return metars, tafs
 
 
@@ -415,7 +415,7 @@ class DataProcess(Thread):
             with open("./output/out") as list:
                 lines = list.readlines()
                 n_out = len(lines)
-                print(n_out)
+                
                 if(n_out>n_history):
                     lines = lines[n_out-n_history:n_out]
                     n_past= n_history
@@ -458,7 +458,7 @@ class DataProcess(Thread):
                 out.write(data)
 
        
-        print(lines)
+       
         with open("./data/data") as list:
             datas = list.readlines()
             lines = lines+datas
