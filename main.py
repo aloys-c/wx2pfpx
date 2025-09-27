@@ -86,23 +86,27 @@ def get_metars_tafs():
     print_m("Downloading last weather reports...\n")
 
     metar_url = "https://aviationweather.gov/data/cache/metars.cache.csv.gz"
-    taf_url = "https://aviationweather.gov/data/cache/tafs.cache.csv.gz"
+    taf_url = "https://aviationweather.gov/data/cache/tafs.cache.xml.gz"
     
     metars = []
     tafs = []
 
     response = requests.get(metar_url)
     f = gzip.decompress(response.content)
+    
     for line in f.split(b"\n")[5:-1]:
         metar = line.decode().split(",")
-        metars.extend([{'ICAO':metar[1],'METAR':metar[0]}])   
+        metars.extend([{'ICAO':metar[1],'METAR':metar[0][1:-1]}])   
 
 
     response = requests.get(taf_url)
     f = gzip.decompress(response.content)
-    for line in f.split(b"\n")[5:-1]:
-        taf = line.decode().split(",")
-        tafs.extend([{'ICAO':taf[1],'TAF':taf[0]}])  
+    root = ET.fromstring(f.decode('utf-8'))
+    xmltafs = root.findall('.//TAF')
+    for taf in xmltafs :
+        raw_text = taf.find("raw_text").text
+        station_id = taf.find("station_id").text
+        tafs.extend([{'ICAO':station_id,'TAF':raw_text}])
 
     return metars, tafs
 
